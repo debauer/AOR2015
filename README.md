@@ -28,6 +28,7 @@ http://www.trikots-fuer-kids.de/
     - SSD in USB Case für Musik
     - USB Soundkarte für den guten Klang
     - USB WLan Stick um Access Point zu realisieren 
+    - RTC weil es ja kein NTP im Netz gibt :>
   * Info LCD via USB an Raspberry
     - Arduino 
     - 4x20 Zeichen LCD mit HD44 Chipsatz
@@ -68,6 +69,11 @@ MPD auf Raspberry und Steuerung via Laptop/Tablet/Handy.
 Die Sensor Daten werden von Arduinos erfasst und via USB oder WLan an den Raspberry übertragen. Dort werden diese verarbeitet und in einer geeigneten Datenbank Archiviert. 
 Dieser Part wird vorraussichtlich in Python umgesetzt. 
 
+Daten Archivierung geschieht in CSV Files. Dabei geht es rein darum die Daten zu Sichern und nicht auszuwerten.
+Damit wir unterwegs auch Graphen auswerten können setzen wir parallel RRDTool ein. 
+Die aktuellen Messwerte werden file based abgelegt um mit Linux Board mittel und eigentlich jeder andern Programmiersprache darauf zugreifen zu können.
+
 ### Sensor Visualisierung
 
-Die in einer Datenbank erfassten Sensor Daten werden mit einer Node.JS APP auf Handy/Tablet verfügbar gemacht. Zum Einsatz kommz SocketStream, ein Node.JS Framework für Realtime Web Apps.
+Die in einer Datenbank erfassten Sensor Daten werden mit einer Node.JS APP auf Handy/Tablet verfügbar gemacht. Zum Einsatz kommt SocketStream, ein Node.JS Framework für Realtime Web Apps.
+Das Framework liefert die erstellten Graphen aus und aktuallisiert in Realtime die Sensordaten.
