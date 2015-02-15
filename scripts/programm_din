@@ -1,0 +1,8 @@
+#!/bin/bash
+echo "CMD: 1"
+cd $1/firmware/remote_unit
+echo "CMD: 2"
+ino build -m mega2560
+echo "CMD: 3"
+ino upload -m mega2560 -p /dev/ttyACM0
+echo "CMD: 4"

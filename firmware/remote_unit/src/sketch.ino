@@ -1,7 +1,7 @@
 #include <memorysaver.h>
 
 #include <UTFT.h>
-//extern uint8_t SevenSegNumFont[];
+extern uint8_t SevenSegNumFont[];
 //extern uint8_t SmallFont[];
 extern uint8_t DotMatrix_M_Slash[];
 extern uint8_t Ubuntu[];
@@ -10,6 +10,12 @@ extern uint8_t Ubuntu[];
 #define COLOR_PURPLE 0,153,255 
 #define COLOR_BLACK 0,0,0 
 #define COLOR_WHITE 255,255,255
+#define COLOR_RED 255,0,0
+#define COLOR_GREEN 0,255,0
+#define COLOR_BLUE 0,0,255
+
+#define BOX_COLOR_RAND COLOR_PURPLE
+#define BOX_COLOR_FILL COLOR_BLACK
 
 UTFT myGLCD(ITDB32WD,38,39,40,41);
 
@@ -22,23 +28,64 @@ void setup()
   myGLCD.setFont(Ubuntu);
 }
 
-void loop()
-{
+void drawBox(int x, int y, int width, int height){
+  myGLCD.setColor(BOX_COLOR_RAND);
+  myGLCD.drawRect(x, y, x+width, y+height);
+  myGLCD.setColor(BOX_COLOR_FILL);
+  myGLCD.drawRect(x+1, y+1, x+width-1, y+height-1);
+}
+
+void loop(){
   int buf[398];
   int x, x2;
   int y, y2;
   int r;
 
 // Clear the screen and draw the frame
-  myGLCD.clrScr();
-  
-  myGLCD.setColor(255, 0, 0);
-  myGLCD.setBackColor(0, 255, 0);
-  myGLCD.fillRect(0, 0, 399, 239);
-  myGLCD.setFont(Ubuntu);
-  myGLCD.print("Gogo Powerrangers!", LEFT, 1);
-  myGLCD.setFont(DotMatrix_M_Slash);
-  myGLCD.print("1238.23", LEFT, 100);
+
+// 4LCD   
+//  drawBox(0,0,100,60);
+//  drawBox(99,0,100,60);
+//  drawBox(199,0,100,60);
+//  drawBox(299,0,100,60);
+
+// 3LCD
+  drawBox(0,0,133,60);
+  drawBox(133,0,133,60);
+  drawBox(266,0,133,60);
+
+  myGLCD.setColor(COLOR_PURPLE);
+  myGLCD.setBackColor(COLOR_BLACK);
+  myGLCD.setFont(SevenSegNumFont);
+
+// 4 LCD
+//  myGLCD.print("123", 2, 5);
+//  myGLCD.print("456", 102, 5);
+//  myGLCD.print("678", 202, 5);
+//  myGLCD.print("231", 302, 5);
+//  myGLCD.fillRect( 64, 50,  67, 53);
+//  myGLCD.fillRect(164, 50, 167, 53);
+//  myGLCD.fillRect(264, 50, 267, 53);
+//  myGLCD.fillRect(364, 50, 367, 53);
+
+ // 3 LCD
+  myGLCD.print("0123", 5, 5);
+  myGLCD.print("0456", 138, 5);
+  myGLCD.print("0678", 269, 5);
+
+  myGLCD.fillRect( 97, 50,  100, 53);
+  myGLCD.fillRect(230, 50, 233, 53);
+  myGLCD.fillRect(363, 50, 366, 53);
+
+  while(1);
+
+//  myGLCD.setColor(COLOR_BLACK);
+//  myGLCD.fillRect(0, 0, 59, 79);
+//  myGLCD.setBackColor(0, 255, 0);
+//  myGLCD.setFont(Ubuntu);
+//  myGLCD.print("Gogo Powerrangers!", LEFT, 1);
+//  myGLCD.setFont(DotMatrix_M_Slash);
+//  myGLCD.print("1238.23", LEFT, 100);
 
 
 
@@ -311,6 +358,5 @@ void loop()
   myGLCD.print("Runtime: (msecs)", CENTER, 210);
   myGLCD.printNumI(millis(), CENTER, 225);
   */ 
-  delay (10000);
 }
 
