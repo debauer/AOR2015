@@ -26,11 +26,20 @@ struct value_s{
   char strRaw[20];
   char str[20];
   int natNumbers;
+  int alarm;
   int x;
   int y;
 };
 
-char text[5][50];
+#define STRING_LENGHT 50
+
+struct string_s{
+  char s[STRING_LENGHT];
+  int x;
+  int y;
+};
+
+string_s text[3] = {{"Dateiname",5,100},{"Titel",5,150},{"Album",5,200}};
 
 value_s values[5];
 
@@ -41,6 +50,76 @@ void drawBox(int x, int y, int width, int height){
   myGLCD.drawRect(x, y, x+width, y+height);
   myGLCD.setColor(BOX_COLOR_FILL);
   myGLCD.fillRect(x+1, y+1, x+width-1, y+height-1);
+}
+
+void stringHandler(){
+  int a,nr;  
+  char *arg; 
+  arg = SCmd.next();
+  a = 0; 
+  if (arg != NULL){
+    nr = atoi(arg);
+    arg = SCmd.next();
+    while(arg != NULL && nr < 3){
+      while(*arg != NULL){
+        text[nr].s[a] = *arg;
+        a++;
+        arg++;
+      }
+      text[nr].s[a] = ' ';
+      a++;
+      arg = SCmd.next();
+    }
+    text[nr].s[a] = 0x00;
+  }
+}
+
+void unrecognized(){
+}
+
+void valueHandler()    {
+  //int aNumber;  
+  //char *arg; 
+//
+  //arg = SCmd.next(); 
+  //if (arg != NULL) 
+  //{
+  //  aNumber=atoi(arg);    // Converts a char string to an integer
+  //  Serial.print("First argument was: "); 
+  //  Serial.println(aNumber); 
+  //} 
+  //else {
+  //  Serial.println("No arguments"); 
+  //}
+//
+  //arg = SCmd.next(); 
+  //if (arg != NULL) 
+  //{
+  //  aNumber=atol(arg); 
+  //  Serial.print("Second argument was: "); 
+  //  Serial.println(aNumber); 
+  //} 
+  //else {
+  //  Serial.println("No second argument"); 
+  //}
+
+}
+
+void updateSegments(){
+  myGLCD.setColor(COLOR_PURPLE);
+  myGLCD.setBackColor(COLOR_BLACK);
+  myGLCD.setFont(SevenSegNumFont);
+  //for(i=0;i<3;i++){
+  //  if(values[i].str[0] != 0x00){
+  //    myGLCD.print(values[i].str,values[i].x, values[i].y); 
+  //  }else{
+  //    for(k=0;k<20;k++){
+  //      if(values[i].str[k] == '.')
+  //        values[i].natNumbers = -1;
+  //    }
+  //    myGLCD.print(values[i].str,values[i].x, values[i].y); 
+  //  }
+  //}
 }
 
 void setup(){
@@ -88,89 +167,26 @@ void setup(){
   myGLCD.fillRect( 97, 50, 100, 53);
   myGLCD.fillRect(230, 50, 233, 53);
   myGLCD.fillRect(363, 50, 366, 53);
-
-  sprintf(&text[0][0],"%s","penis");
-
-}
-
-void stringHandler(){
-  int a,nr;  
-  char *arg; 
-  arg = SCmd.next();
-  a = 0; 
-  if (arg != NULL){
-    nr = atoi(arg);
-    if (arg != NULL && nr < 3){
-      sprintf(&text[nr][0],"%s",arg);
-      //while(*arg != NULL){
-      //  text[nr][a] = *arg;
-      //  a++;
-      //  arg++;
-      //}
-    }
-    //text[nr][a] = 0x00;
-  }
-}
-
-void unrecognized(){
-
-}
-
-void valueHandler()    
-{
-  //int aNumber;  
-  //char *arg; 
-//
-  //arg = SCmd.next(); 
-  //if (arg != NULL) 
-  //{
-  //  aNumber=atoi(arg);    // Converts a char string to an integer
-  //  Serial.print("First argument was: "); 
-  //  Serial.println(aNumber); 
-  //} 
-  //else {
-  //  Serial.println("No arguments"); 
-  //}
-//
-  //arg = SCmd.next(); 
-  //if (arg != NULL) 
-  //{
-  //  aNumber=atol(arg); 
-  //  Serial.print("Second argument was: "); 
-  //  Serial.println(aNumber); 
-  //} 
-  //else {
-  //  Serial.println("No second argument"); 
-  //}
-
-}
-
-void updateSegments(){
-  myGLCD.setColor(COLOR_PURPLE);
-  myGLCD.setBackColor(COLOR_BLACK);
-  myGLCD.setFont(SevenSegNumFont);
-  //for(i=0;i<3;i++){
-  //  if(values[i].str[0] != 0x00){
-  //    myGLCD.print(values[i].str,values[i].x, values[i].y); 
-  //  }else{
-  //    for(k=0;k<20;k++){
-  //      if(values[i].str[k] == '.')
-  //        values[i].natNumbers = -1;
-  //    }
-  //    myGLCD.print(values[i].str,values[i].x, values[i].y); 
-  //  }
-  //}
 }
 
 
 void loop(){
+  static int g = 0;
   SCmd.readSerial();     // We don't do much, just process serial commands
 
   updateSegments();
-  myGLCD.setColor(COLOR_PURPLE);
+  if(g){
+    g = 0;
+    myGLCD.setColor(COLOR_RED);
+  }else{
+    g = 1;
+    myGLCD.setColor(COLOR_PURPLE);
+  }
   myGLCD.setBackColor(COLOR_BLACK);
   myGLCD.setFont(Ubuntu);
-  myGLCD.print(text[0],100, 5);
+  for(i=0;i<3;i++;){
+    myGLCD.print(text[i].s,text[i].x, text[i].y);
+  }
 
 // 4LCD   
 //  drawBox(0,0,100,60);
