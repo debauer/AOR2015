@@ -25,11 +25,11 @@ SerialCommand SCmd;
 UTFT myGLCD(ITDB32WD,38,39,40,41);
 
 #define STRING_LENGHT 50
-#define COUNT_VALUE 3
-#define COUNT_TEXT 4
+#define COUNT_VALUE 6
+#define COUNT_TEXT 10
 
 struct value_s{
-  char str[20];
+  double v;
   int natNumbers;
   int alarm;
   int x;
@@ -37,8 +37,8 @@ struct value_s{
   int padding;
   int width;
   int height;
-        int color;
-        int bcolor;
+  int color;
+  int bcolor;
 };
 
 struct string_s{
@@ -50,10 +50,20 @@ struct string_s{
         int bcolor;
 };
 
-string_s text[COUNT_TEXT] = {{"Die Antwoord - ADSD","Artist + Titel",CENTER,140,COLOR_WHITE,COLOR_BLACK},
-                            {"#13/19 1:34/4:31 (34%)","Status1",CENTER,170,COLOR_GREY,COLOR_BLACK},
-                            {"V: 51%  RE: off  RA: off","Status2",CENTER,200,COLOR_GREY,COLOR_BLACK},
-                            {"ALLGAEU ORIENT 2015","penis",CENTER,3,COLOR_BLACK,COLOR_SAND}};
+#define VALUES_MARGIN_TOP 100
+#define MPD_MARGIN_TOP 30
+#define AOR_MARGIN_TOP 0
+
+string_s text[COUNT_TEXT] = {{"Die Antwoord - ADSD","Artist + Titel",CENTER,0+MPD_MARGIN_TOP,COLOR_WHITE,COLOR_BLACK},
+                            {"#13/19 1:34/4:31 (34%)","Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
+                            {"V: 51%  RE: off  RA: off","Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
+                            {"ALLGAEU ORIENT 2015","penis",CENTER,3+AOR_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"OEL1","penis",35,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"OEL2","penis",170,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"RPI","penis",315,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"Motor","penis",25,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"Aussen","penis",155,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"Innen","penis",295,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND}};
 
 // 4LCD   
 //  drawBox(0,0,100,60);
@@ -66,11 +76,12 @@ string_s text[COUNT_TEXT] = {{"Die Antwoord - ADSD","Artist + Titel",CENTER,140,
 //  drawBox(133,0,133,60);
 //  drawBox(266,0,133,60);
 
-#define VALUES_MARGIN_TOP 20
-
-value_s values[COUNT_VALUE] = { {"0123",-1,-99,0,VALUES_MARGIN_TOP,5,133,60,COLOR_PURPLE,COLOR_BLACK},
-                                {"0567",-1,-99,133,VALUES_MARGIN_TOP,5,133,60,COLOR_PURPLE,COLOR_BLACK},
-                                {"0234",-1,-99,266,VALUES_MARGIN_TOP,5,133,60,COLOR_PURPLE,COLOR_BLACK}};
+value_s values[COUNT_VALUE] = { {60.2,-1,500.0,0,VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
+                                {66.5,-1,500.0,133,VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
+                                {62.0,-1,60.0,266,VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
+                                {120.1,-1,500.0,0,70+VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
+                                {27.6,-1,500.0,133,70+VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
+                                {23.4,-1,500.0,266,70+VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK}};
 
 int i,k;
 
@@ -116,7 +127,7 @@ void valueHandler(){
     nr = atoi(arg);
     arg = SCmd.next();
     if(arg != NULL && nr < 3){
-       sprintf(values[nr].str,"%s",arg);
+       //sprintf(values[nr].str,"%s",arg);
     }
   }
 }
@@ -128,11 +139,15 @@ void inputHandler(){
 
 void updateValues(){
   static int c;
-  myGLCD.setColor(values[c].color);
+  char str[10];
+  dtostrf(values[c].v, 5, 1, &str[0]);
+  if(values[c].v > values[c].alarm)
+    myGLCD.setColor(COLOR_RED); 
+  else 
+    myGLCD.setColor(values[c].color);
   myGLCD.setBackColor(values[c].bcolor);
-  myGLCD.setFont(SevenSegNumFont);
-  myGLCD.print(values[c].str, values[c].x+values[c].padding, values[c].y+values[c].padding);
-        myGLCD.fillRect( values[c].x+97, values[c].y+50, values[c].x+100, values[c].y+53);
+  myGLCD.setFont(Ubuntu);
+  myGLCD.print(str, values[c].x+values[c].padding-5, values[c].y+values[c].padding);
   c++;
   if(c>=COUNT_VALUE)
      c = 0;
@@ -143,7 +158,7 @@ void updateTexte(){
   myGLCD.setColor(text[c].color);
   myGLCD.setBackColor(text[c].bcolor);
   myGLCD.setFont(BigFont);
-        myGLCD.print(text[c].s,text[c].x, text[c].y);
+  myGLCD.print(text[c].s,text[c].x, text[c].y);
   c++;
   if(c>=COUNT_TEXT)
         c = 0;
@@ -163,18 +178,19 @@ void setup(){
   Serial.begin(9600);
 
   SCmd.addCommand("value",valueHandler);       // Turns LED on
-  SCmd.addCommand("string",stringHandler);        // Turns LED off
-  SCmd.addDefaultHandler(unrecognized);  // Handler for command that isn't matched  (says "What?") 
+  SCmd.addCommand("string",stringHandler);     // Turns LED off
+  SCmd.addDefaultHandler(unrecognized);        // Handler for command that isn't matched  (says "What?") 
 
   myGLCD.setColor(COLOR_PURPLE);
   myGLCD.setBackColor(COLOR_BLACK);
 
-  for(i=0;i<3;i++){
+  for(i=0;i<COUNT_VALUE;i++){
      drawBox(values[i].x,values[i].y,values[i].width,values[i].height);
   }
-        myGLCD.setColor(COLOR_SAND);
-        myGLCD.fillRect( 0, 0, 399, 20);
-        myGLCD.fillRect( 0, 80, 399, 100);
+  myGLCD.setColor(COLOR_SAND);
+  myGLCD.fillRect( 0, AOR_MARGIN_TOP, 399, 20+AOR_MARGIN_TOP);
+  myGLCD.fillRect( 0, 50+VALUES_MARGIN_TOP, 399, 70+VALUES_MARGIN_TOP);
+  myGLCD.fillRect( 0, 120+VALUES_MARGIN_TOP, 399, 140+VALUES_MARGIN_TOP);
         //GLCD.setColor(COLOR_BLACK);
         //myGLCD.setBackColor(COLOR_SAND);
         //yGLCD.setFont(BigFont);
