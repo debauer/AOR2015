@@ -26,7 +26,8 @@ UTFT myGLCD(ITDB32WD,38,39,40,41);
 
 #define STRING_LENGHT 50
 #define COUNT_VALUE 6
-#define COUNT_TEXT 10
+#define COUNT_TEXT 7
+#define COUNT_MPD 3
 
 struct value_s{
   double v;
@@ -43,7 +44,6 @@ struct value_s{
 
 struct string_s{
   char s[STRING_LENGHT];
-  char b[STRING_LENGHT];
   int x;
   int y;
   int color;
@@ -56,26 +56,24 @@ struct mpd_s{
   int y;
   int color;
   int bcolor;
-  int height;
-  int padding;
 };
 
 #define VALUES_MARGIN_TOP 100
 #define MPD_MARGIN_TOP 30
 #define AOR_MARGIN_TOP 0
 
-string_s mpd[COUNT_MPD] = {{"Artist + Titel",CENTER,0+MPD_MARGIN_TOP,COLOR_WHITE,COLOR_BLACK,20,2},
-                            {"Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK,20,2},
-                            {"Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK,20,2}};
+mpd_s mpd[COUNT_MPD] = {{"Artist + Titel",CENTER,0+MPD_MARGIN_TOP,COLOR_WHITE,COLOR_BLACK},
+                            {"Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
+                            {"Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK}};
 
 
-string_s text[COUNT_TEXT] = {{"ALLGAEU ORIENT 2015","penis",CENTER,3+AOR_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
-                            {"OEL1","penis",35,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
-                            {"OEL2","penis",170,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
-                            {"RPI","penis",315,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
-                            {"Motor","penis",25,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
-                            {"Aussen","penis",155,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
-                            {"Innen","penis",295,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND}};
+string_s text[COUNT_TEXT] = {{"ALLGAEU ORIENT 2015",CENTER,3+AOR_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"OEL1",35,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"OEL2",170,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"RPI",315,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"Motor",25,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"Aussen",155,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+                            {"Innen",295,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND}};
 
 // 4LCD   
 //  drawBox(0,0,100,60);
@@ -127,13 +125,18 @@ void stringHandler(){
 }
 
 void mpdHandler(){
-  int a,nr;  
+  int a,b,nr;  
   char *arg; 
   arg = SCmd.next();
   a = 0; 
   if (arg != NULL){
     nr = atoi(arg);
     arg = SCmd.next();
+    if(arg != NULL){
+      for(b=0;b<STRING_LENGHT;b++){
+         mpd[nr].s[b] = 0x00;
+      }
+    }   
     while(arg != NULL && nr < COUNT_MPD){
       while(*arg != NULL){
         mpd[nr].s[a] = *arg;
@@ -145,12 +148,15 @@ void mpdHandler(){
       arg = SCmd.next();
     }
     myGLCD.setColor(mpd[nr].bcolor);
-    myGLCD.fillRect( 0, mpd[nr].y, 399, mpd[nr].y+mpd[nr].height);
+    myGLCD.fillRect( 0, mpd[nr].y, 399, mpd[nr].y+15);
     myGLCD.setColor(mpd[nr].color);
     myGLCD.setBackColor(mpd[nr].bcolor);
     myGLCD.setFont(BigFont);
-    myGLCD.print(mpd[nr].s,CENTER, mpd[nr].y+mpd[nr].padding); 
+    myGLCD.print(mpd[nr].s,CENTER, mpd[nr].y); 
+    if(a>0)
+      mpd[nr].s[a-1] = 0x00;
     mpd[nr].s[a] = 0x00;
+    mpd[nr].s[a+1] = 0x00;
   }
 }
 
@@ -234,6 +240,12 @@ void setup(){
   myGLCD.fillRect( 0, 50+VALUES_MARGIN_TOP, 399, 70+VALUES_MARGIN_TOP);
   myGLCD.fillRect( 0, 120+VALUES_MARGIN_TOP, 399, 140+VALUES_MARGIN_TOP);
 
+  myGLCD.setFont(BigFont);
+  for(i=0;i<COUNT_MPD;i++){
+    myGLCD.setColor(mpd[i].color);
+    myGLCD.setBackColor(mpd[i].bcolor);
+    myGLCD.print(mpd[i].s,CENTER, mpd[i].y); 
+  }
   updateTexte();
 }
 
