@@ -1,6 +1,7 @@
 #include <memorysaver.h>
 
 #include <UTFT.h>
+#include <UTFT_Geometry.h>
 #include <SerialCommand.h>
 extern uint8_t SevenSegNumFont[];
 extern uint8_t SmallFont[];
@@ -24,31 +25,11 @@ SerialCommand SCmd;
 
 UTFT myGLCD(ITDB32WD,38,39,40,41);
 
+UTFT_Geometry geo(&myGLCD);
+
+extern unsigned int compass_bmp[0x3E04];
+
 #define STRING_LENGHT 50
-#define COUNT_VALUE 6
-#define COUNT_TEXT 7
-#define COUNT_MPD 3
-
-struct value_s{
-  double v;
-  int natNumbers;
-  int alarm;
-  int x;
-  int y;
-  int padding;
-  int width;
-  int height;
-  int color;
-  int bcolor;
-};
-
-struct string_s{
-  char s[STRING_LENGHT];
-  int x;
-  int y;
-  int color;
-  int bcolor;
-};
 
 struct mpd_s{
   char s[STRING_LENGHT];
@@ -58,22 +39,39 @@ struct mpd_s{
   int bcolor;
 };
 
-#define VALUES_MARGIN_TOP 100
+#define COUNT_MPD 3
 #define MPD_MARGIN_TOP 30
-#define AOR_MARGIN_TOP 0
 
 mpd_s mpd[COUNT_MPD] = {{"Artist + Titel",CENTER,0+MPD_MARGIN_TOP,COLOR_WHITE,COLOR_BLACK},
-                            {"Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
-                            {"Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK}};
+                        {"Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
+                        {"Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK}};
 
 
-string_s text[COUNT_TEXT] = {{"ALLGAEU ORIENT 2015",CENTER,3+AOR_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+
+struct string_s{
+  char s[STRING_LENGHT];
+  int x;
+  int y;
+  int color;
+  int bcolor;
+  int seite;
+};
+
+#define COUNT_TEXT 4
+#define AOR_MARGIN_TOP 0
+
+string_s text[COUNT_TEXT] = {{"ALLGAEU ORIENT 2015",CENTER,AOR_MARGIN_TOP,COLOR_BLACK,COLOR_SAND,0},
+                             {"MPD Playlist",CENTER,AOR_MARGIN_TOP,COLOR_BLACK,COLOR_PURPLE,1},
+                             {"MPD Files",CENTER,AOR_MARGIN_TOP,COLOR_BLACK,COLOR_PURPLE,2},
+                             {"Kompass",CENTER,AOR_MARGIN_TOP,COLOR_BLACK,COLOR_PURPLE,3}};
+
+/*
                             {"OEL1",35,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
                             {"OEL2",170,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
                             {"RPI",315,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
                             {"Motor",25,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
                             {"Aussen",155,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
-                            {"Innen",295,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND}};
+                            {"Innen",295,123+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND}}; */
 
 // 4LCD   
 //  drawBox(0,0,100,60);
@@ -86,21 +84,52 @@ string_s text[COUNT_TEXT] = {{"ALLGAEU ORIENT 2015",CENTER,3+AOR_MARGIN_TOP,COLO
 //  drawBox(133,0,133,60);
 //  drawBox(266,0,133,60);
 
-value_s values[COUNT_VALUE] = { {60.2,-1,500.0,0,VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
-                                {66.5,-1,500.0,133,VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
-                                {62.0,-1,60.0,266,VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
-                                {120.1,-1,500.0,0,70+VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
-                                {27.6,-1,500.0,133,70+VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK},
-                                {23.4,-1,500.0,266,70+VALUES_MARGIN_TOP,13,133,50,COLOR_PURPLE,COLOR_BLACK}};
+
+struct value_s{
+  double v;
+  char text[STRING_LENGHT];
+  int alarm;
+};
+  
+struct value_box_s{
+  int vid;
+  int x;  
+  int y;
+  int padding_left; // text padding in box
+  int padding_top;  // text padding in box
+  int width;   // der box
+  int height;  // der box
+  int background_color;
+  int value_color;
+  int alarm_color; 
+  int text_color;
+  int box_color;
+  int seite;
+};
+
+#define VALUES_MARGIN_TOP 100
+#define COUNT_VALUE 6
+#define COUNT_BOX 6
+#define VALUE_COLOR_SCHEMA COLOR_BLACK,COLOR_PURPLE,COLOR_RED,COLOR_BLACK,COLOR_SAND
+
+value_s values[COUNT_VALUE] = {{60.2,"OEL1",500.0},
+                                {66.5,"OEL2",500.0},
+                                {62.0,"RPI",60.0},
+                                {120.1,"Motor",500.0},
+                                {27.6,"Aussen",500.0},
+                                {23.4,"Innen",500.0}};
+
+value_box_s value_boxes[COUNT_BOX] = {  {0,0,    VALUES_MARGIN_TOP,     8,13,133,50,VALUE_COLOR_SCHEMA,0},
+                                        {1,133,  VALUES_MARGIN_TOP,     8,13,133,50,VALUE_COLOR_SCHEMA,0},
+                                        {2,266,  VALUES_MARGIN_TOP,     8,13,133,50,VALUE_COLOR_SCHEMA,0},
+                                        {3,0,    70+VALUES_MARGIN_TOP,  8,13,133,50,VALUE_COLOR_SCHEMA,0},
+                                        {4,133,  70+VALUES_MARGIN_TOP,  8,13,133,50,VALUE_COLOR_SCHEMA,0},
+                                        {5,266,  70+VALUES_MARGIN_TOP,  8,13,133,50,VALUE_COLOR_SCHEMA,0}};
+                                        
+                                        
+int seite = 0;
 
 int i,k;
-
-void drawBox(int x, int y, int width, int height){
-  myGLCD.setColor(BOX_COLOR_RAND);
-  myGLCD.drawRect(x, y, x+width, y+height);
-  myGLCD.setColor(BOX_COLOR_FILL);
-  myGLCD.fillRect(x+1, y+1, x+width-1, y+height-1);
-}
 
 void stringHandler(){
   int a,nr;  
@@ -163,6 +192,18 @@ void mpdHandler(){
 void unrecognized(){
 }
 
+void seitenHandler(){
+  int a,c,nr;
+  double d;  
+  char *arg; 
+  arg = SCmd.next();
+  a = 0; 
+  if (arg != NULL){
+    seite = atoi(arg);
+    drawSeite();
+  } 
+}
+
 void valueHandler(){
   int a,c,nr;
   double d;  
@@ -184,34 +225,93 @@ void inputHandler(){
 
 
 void updateValues(){
-  static int c;
+  static int c,id;
   char str[10];
-  dtostrf(values[c].v, 5, 1, &str[0]);
-  if(values[c].v > values[c].alarm)
-    myGLCD.setColor(COLOR_RED); 
-  else 
-    myGLCD.setColor(values[c].color);
-  myGLCD.setBackColor(values[c].bcolor);
-  myGLCD.setFont(Ubuntu);
-  myGLCD.print(str, values[c].x+values[c].padding-5, values[c].y+values[c].padding);
+  if(value_boxes[i].seite == seite){
+    id = value_boxes[c].vid;
+    dtostrf(values[id].v, 5, 1, &str[0]);
+    if(values[id].v > values[id].alarm)
+      myGLCD.setColor(value_boxes[c].alarm_color); 
+    else 
+      myGLCD.setColor(value_boxes[c].value_color);
+    myGLCD.setBackColor(value_boxes[c].background_color);
+    myGLCD.setFont(Ubuntu);
+    myGLCD.print(str, value_boxes[c].x+value_boxes[c].padding_left, value_boxes[c].y+value_boxes[c].padding_top);
+    myGLCD.setColor(value_boxes[c].text_color);
+    myGLCD.setBackColor(value_boxes[c].box_color);
+    myGLCD.setFont(BigFont);
+    myGLCD.print(values[id].text,value_boxes[c].x, value_boxes[c].y + value_boxes[c].height + 2); 
+  } 
   c++;
   if(c>=COUNT_VALUE)
      c = 0;
+   
+}
+
+void initValues(){
+  for(i=0;i<COUNT_VALUE;i++){
+      if(value_boxes[i].seite == seite){
+        myGLCD.setColor(BOX_COLOR_RAND);
+        myGLCD.drawRect(value_boxes[i].x, value_boxes[i].y, value_boxes[i].x+value_boxes[i].width, value_boxes[i].y+value_boxes[i].height);
+        myGLCD.setColor(BOX_COLOR_FILL);
+        myGLCD.fillRect(value_boxes[i].x+1, value_boxes[i].y+1, value_boxes[i].x+value_boxes[i].width-1, value_boxes[i].y+value_boxes[i].height-1);
+        myGLCD.setColor(value_boxes[i].box_color);
+        myGLCD.fillRect( value_boxes[i].x, 
+                         value_boxes[i].y + value_boxes[i].height,
+                         value_boxes[i].x + value_boxes[i].width, 
+                         value_boxes[i].y + value_boxes[i].height+20); 
+      }      
+  }
 }
 
 void updateText(int c){
-  myGLCD.setColor(text[c].color);
-  myGLCD.setBackColor(text[c].bcolor);
-  myGLCD.setFont(BigFont);
-  myGLCD.print(text[c].s,text[c].x, text[c].y);        
+  if(text[c].seite == seite){
+    myGLCD.setColor(text[c].bcolor);
+    myGLCD.fillRect( 0, text[c].y, 399, 20+text[c].y);
+    myGLCD.setColor(text[c].color);
+    myGLCD.setBackColor(text[c].bcolor);
+    myGLCD.setFont(BigFont);
+    myGLCD.print(text[c].s,text[c].x, text[c].y+3); 
+  }    
 }
 
 void updateTexte(){
-  static int c;
-  updateText(c);
-  c++;
-  if(c>=COUNT_TEXT)
-    c = 0;
+  for(i=0;i<COUNT_TEXT;i++)
+    updateText(i);
+}
+
+#define COMPASS_X 200-126/2
+#define COMPASS_Y 135-126/2
+#define COMPASS_RADIUS 100
+#define COMPASS_X0 200
+#define COMPASS_Y0 135-COMPASS_RADIUS
+
+void drawCompass(int winkel){
+  myGLCD.setBackColor(COLOR_BLACK);
+  myGLCD.fillRect( 0, 20, 399, 239);
+  myGLCD.drawBitmap(COMPASS_X, COMPASS_Y, 126,126, compass_bmp, winkel, 63, 63,COLOR_BLACK); 
+}
+
+void drawSeite(){
+  int x1,x2,x3,y1,y2,y3,r,as,ae;
+  myGLCD.setColor(COLOR_BLACK);
+  myGLCD.setBackColor(COLOR_BLACK);
+  myGLCD.fillRect( 0, 0, 399, 239);
+
+  initValues();
+  
+  if(0 == seite){
+    // MPD Texte Initialisieren
+    myGLCD.setFont(BigFont);
+    for(i=0;i<COUNT_MPD;i++){
+      myGLCD.setColor(mpd[i].color);
+      myGLCD.setBackColor(mpd[i].bcolor);
+      myGLCD.print(mpd[i].s,CENTER, mpd[i].y); 
+    }
+  }
+  
+  // Texte plotten
+  updateTexte(); // updatet alle Texte!
 }
 
 void setup(){
@@ -223,30 +323,16 @@ void setup(){
   myGLCD.setFont(Ubuntu);
 
   Serial.begin(9600);
+  
+  seite = 0;
 
   SCmd.addCommand("value",valueHandler);       // Turns LED on
   SCmd.addCommand("string",stringHandler);     // Turns LED off
   SCmd.addCommand("mpd",mpdHandler);     // Turns LED off
+  SCmd.addCommand("seite",seitenHandler);     // Turns LED off
   SCmd.addDefaultHandler(unrecognized);        // Handler for command that isn't matched  (says "What?") 
-
-  myGLCD.setColor(COLOR_PURPLE);
-  myGLCD.setBackColor(COLOR_BLACK);
-
-  for(i=0;i<COUNT_VALUE;i++){
-     drawBox(values[i].x,values[i].y,values[i].width,values[i].height);
-  }
-  myGLCD.setColor(COLOR_SAND);
-  myGLCD.fillRect( 0, AOR_MARGIN_TOP, 399, 20+AOR_MARGIN_TOP);
-  myGLCD.fillRect( 0, 50+VALUES_MARGIN_TOP, 399, 70+VALUES_MARGIN_TOP);
-  myGLCD.fillRect( 0, 120+VALUES_MARGIN_TOP, 399, 140+VALUES_MARGIN_TOP);
-
-  myGLCD.setFont(BigFont);
-  for(i=0;i<COUNT_MPD;i++){
-    myGLCD.setColor(mpd[i].color);
-    myGLCD.setBackColor(mpd[i].bcolor);
-    myGLCD.print(mpd[i].s,CENTER, mpd[i].y); 
-  }
-  updateTexte();
+  
+  drawSeite();
 }
 
 void loop(){
@@ -254,5 +340,14 @@ void loop(){
   inputHandler();
   updateValues();
   //updateTexte();
+  
+  
+  if(seite == 3){
+    delay(2000);
+    drawCompass(g);
+    g=g+10;
+    if(g>=360)
+      g = 0;
+  }
 }
 
