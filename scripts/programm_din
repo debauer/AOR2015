@@ -1,6 +1,5 @@
 ﻿
-#!/bin/bash
+echo $1/firmware/remote_unit
 cd $1/firmware/remote_unit
 ino build -m mega2560
-ino upload -m mega2560 -p /dev/ttyACM1
-#stty -F /dev/ttyACM1 -hupcl
+ino upload -m mega2560 -p /dev/ttyACM0

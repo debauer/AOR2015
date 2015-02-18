@@ -43,21 +43,33 @@ struct value_s{
 
 struct string_s{
   char s[STRING_LENGHT];
-        char b[STRING_LENGHT];
+  char b[STRING_LENGHT];
   int x;
   int y;
-        int color;
-        int bcolor;
+  int color;
+  int bcolor;
+};
+
+struct mpd_s{
+  char s[STRING_LENGHT];
+  int x;
+  int y;
+  int color;
+  int bcolor;
+  int height;
+  int padding;
 };
 
 #define VALUES_MARGIN_TOP 100
 #define MPD_MARGIN_TOP 30
 #define AOR_MARGIN_TOP 0
 
-string_s text[COUNT_TEXT] = {{"Die Antwoord - ADSD","Artist + Titel",CENTER,0+MPD_MARGIN_TOP,COLOR_WHITE,COLOR_BLACK},
-                            {"#13/19 1:34/4:31 (34%)","Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
-                            {"V: 51%  RE: off  RA: off","Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
-                            {"ALLGAEU ORIENT 2015","penis",CENTER,3+AOR_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
+string_s mpd[COUNT_MPD] = {{"Artist + Titel",CENTER,0+MPD_MARGIN_TOP,COLOR_WHITE,COLOR_BLACK,20,2},
+                            {"Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK,20,2},
+                            {"Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK,20,2}};
+
+
+string_s text[COUNT_TEXT] = {{"ALLGAEU ORIENT 2015","penis",CENTER,3+AOR_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
                             {"OEL1","penis",35,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
                             {"OEL2","penis",170,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
                             {"RPI","penis",315,53+VALUES_MARGIN_TOP,COLOR_BLACK,COLOR_SAND},
@@ -100,7 +112,7 @@ void stringHandler(){
   if (arg != NULL){
     nr = atoi(arg);
     arg = SCmd.next();
-    while(arg != NULL && nr < 3){
+    while(arg != NULL && nr < COUNT_TEXT){
       while(*arg != NULL){
         text[nr].s[a] = *arg;
         a++;
@@ -111,6 +123,34 @@ void stringHandler(){
       arg = SCmd.next();
     }
     text[nr].s[a] = 0x00;
+  }
+}
+
+void mpdHandler(){
+  int a,nr;  
+  char *arg; 
+  arg = SCmd.next();
+  a = 0; 
+  if (arg != NULL){
+    nr = atoi(arg);
+    arg = SCmd.next();
+    while(arg != NULL && nr < COUNT_MPD){
+      while(*arg != NULL){
+        mpd[nr].s[a] = *arg;
+        a++;
+        arg++;
+      }
+      mpd[nr].s[a] = ' ';
+      a++;
+      arg = SCmd.next();
+    }
+    myGLCD.setColor(mpd[nr].bcolor);
+    myGLCD.fillRect( 0, mpd[nr].y, 399, mpd[nr].y+mpd[nr].height);
+    myGLCD.setColor(mpd[nr].color);
+    myGLCD.setBackColor(mpd[nr].bcolor);
+    myGLCD.setFont(BigFont);
+    myGLCD.print(mpd[nr].s,CENTER, mpd[nr].y+mpd[nr].padding); 
+    mpd[nr].s[a] = 0x00;
   }
 }
 
@@ -126,8 +166,8 @@ void valueHandler(){
   if (arg != NULL){
     nr = atoi(arg);
     arg = SCmd.next();
-    if(arg != NULL && nr < 3){
-       //sprintf(values[nr].str,"%s",arg);
+    if(arg != NULL && nr < COUNT_VALUE){
+       values[nr].v = atof(arg);
     }
   }
 }
@@ -153,25 +193,26 @@ void updateValues(){
      c = 0;
 }
 
-void updateTexte(){
-  static int c;
+void updateText(int c){
   myGLCD.setColor(text[c].color);
   myGLCD.setBackColor(text[c].bcolor);
   myGLCD.setFont(BigFont);
-  myGLCD.print(text[c].s,text[c].x, text[c].y);
+  myGLCD.print(text[c].s,text[c].x, text[c].y);        
+}
+
+void updateTexte(){
+  static int c;
+  updateText(c);
   c++;
   if(c>=COUNT_TEXT)
-        c = 0;
-        //myGLCD.setColor(COLOR_SAND);
-        //myGLCD.fillRect( 0, text[c].y+35, 399, text[c].y+40);
-                
+    c = 0;
 }
 
 void setup(){
 
   //randomSeed(analogRead(0));
   
-// Setup the LCD
+  // Setup the LCD
   myGLCD.InitLCD();
   myGLCD.setFont(Ubuntu);
 
@@ -179,6 +220,7 @@ void setup(){
 
   SCmd.addCommand("value",valueHandler);       // Turns LED on
   SCmd.addCommand("string",stringHandler);     // Turns LED off
+  SCmd.addCommand("mpd",mpdHandler);     // Turns LED off
   SCmd.addDefaultHandler(unrecognized);        // Handler for command that isn't matched  (says "What?") 
 
   myGLCD.setColor(COLOR_PURPLE);
@@ -191,16 +233,14 @@ void setup(){
   myGLCD.fillRect( 0, AOR_MARGIN_TOP, 399, 20+AOR_MARGIN_TOP);
   myGLCD.fillRect( 0, 50+VALUES_MARGIN_TOP, 399, 70+VALUES_MARGIN_TOP);
   myGLCD.fillRect( 0, 120+VALUES_MARGIN_TOP, 399, 140+VALUES_MARGIN_TOP);
-        //GLCD.setColor(COLOR_BLACK);
-        //myGLCD.setBackColor(COLOR_SAND);
-        //yGLCD.setFont(BigFont);
-        //myGLCD.print(aor.s,aor.x, aor.y);
+
+  updateTexte();
 }
 
 void loop(){
   static int g = 0;
   inputHandler();
   updateValues();
-  updateTexte();
+  //updateTexte();
 }
 
