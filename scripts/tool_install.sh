@@ -42,8 +42,7 @@
 	wget http://demos.pihomeserver.fr/influxdb_0.8.6_armhf.deb
 	dpkg --install influxdb_0.8.6_armhf.deb
 
-	sed -i 's!dir = "/opt/influxdb/shared/data/db"!dir = "/mnt/ssd0/data_influx/db"!g' /opt/influxdb/shared/config.toml
-	echo 'dir = "/opt/influxdb/shared/data"' >> /opt/influxdb/shared/config.toml
+	sed -i 's!dir = .*!dir = "/mnt/ssd0/data_influx/db"!g' /opt/influxdb/shared/config.toml
 	service influxdb start
 
 # grafana
