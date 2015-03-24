@@ -12,7 +12,7 @@ http://www.trikots-fuer-kids.de/
   * Fahrzeug Sensoren Zentral überwachen
   * Messwert Archivierung und aufarbeitung
   * Musik komfortabel abspielen
-  * Weiter Nutzung der entwicklung in unsern Privaten Fahrzeugen nach der Rallye
+  * Weiter Nutzung der Entwicklung in unsern Privaten Fahrzeugen nach der Rallye
   * Geschützt vor Umwelteinflüssen
   
 ## Beweggründe
@@ -24,15 +24,18 @@ http://www.trikots-fuer-kids.de/
 
 ### Fahrzeug 1
 
-  * Zentraler Linux Rechner (Raspberry PI) 
-    - SSD in USB Case für Musik
+  * Zentraler Linux Rechner (Raspberry PI 2) 
+    - SSD (128gb) in USB Case für Datenbanken
+    - SSD (256gb) in USB Case für Musik
     - USB Soundkarte für den guten Klang
     - USB WLan Stick um Access Point zu realisieren 
     - RTC weil es ja kein NTP im Netz gibt :>
-  * Info LCD via USB an Raspberry
+  * Info LCD via USB an Raspberry im DIN Schacht
     - Arduino 
-    - 4x20 Zeichen LCD mit HD44 Chipsatz
-  * Arduino Sensor Node
+    - ~~4x20 Zeichen LCD mit HD44 Chipsatz~~
+    - 3,2" 400x240 Farb LCD
+    - diverse Endocer/Tasten zum Steuern von Musik und Ausgaben
+  * Arduino Sensor Node im DIN Schacht
     - 1 Wire Temperatur
     - Gyro
     - GPS
@@ -62,18 +65,22 @@ http://www.trikots-fuer-kids.de/
 
 ### Musik
 
-MPD auf Raspberry und Steuerung via Laptop/Tablet/Handy.
+MPD auf Raspberry und Steuerung via Laptop/Tablet/Handy und über den DIN Schacht.
 
 ### Sensor Daten Erfassung/Speicherung
 
-Die Sensor Daten werden von Arduinos erfasst und via USB oder WLan an den Raspberry übertragen. Dort werden diese verarbeitet und in einer geeigneten Datenbank Archiviert. 
-Dieser Part wird vorraussichtlich in Python umgesetzt. 
+Die Sensor Daten werden von Arduinos erfasst und via USB oder WLan an den Raspberry übertragen. Dort werden diese verarbeitet und in ~~einer geeigneten Datenbank Archiviert~~ influxdb gespeichert. 
+Dieser Part ~~wird vorraussichtlich~~ ist in Python umgesetzt. 
 
-Daten Archivierung geschieht in CSV Files. Dabei geht es rein darum die Daten zu Sichern und nicht auszuwerten.
+~~Daten Archivierung geschieht in CSV Files. Dabei geht es rein darum die Daten zu Sichern und nicht auszuwerten.
 Damit wir unterwegs auch Graphen auswerten können setzen wir parallel RRDTool ein. 
-Die aktuellen Messwerte werden file based abgelegt um mit Linux Board mittel und eigentlich jeder andern Programmiersprache darauf zugreifen zu können.
+Die aktuellen Messwerte werden file based abgelegt um mit Linux Board mittel und eigentlich jeder andern Programmiersprache darauf zugreifen zu können.~~
+
+Die Datenarchivierung geschieht via influxdb welche ihre Daten auf einer SSD ablegt.
 
 ### Sensor Visualisierung
 
-Die in einer Datenbank erfassten Sensor Daten werden mit einer Node.JS APP auf Handy/Tablet verfügbar gemacht. Zum Einsatz kommt SocketStream, ein Node.JS Framework für Realtime Web Apps.
-Das Framework liefert die erstellten Graphen aus und aktuallisiert in Realtime die Sensordaten.
+~~Die in einer Datenbank erfassten Sensor Daten werden mit einer Node.JS APP auf Handy/Tablet verfügbar gemacht. Zum Einsatz kommt SocketStream, ein Node.JS Framework für Realtime Web Apps.
+Das Framework liefert die erstellten Graphen aus und aktuallisiert in Realtime die Sensordaten.~~
+
+Visualisierung übernimmt das Webbasierte Grafana.
