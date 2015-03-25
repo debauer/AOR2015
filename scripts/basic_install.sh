@@ -7,7 +7,7 @@
 	cd 
 	cat /home/pi/.bashrc >> .bashrc
 	aptitude -y install htop screen mc python-pip
-
+	adduser --disabled-password --gecos "" aor 
 
 # USB fix
 	echo "max_usb_current=1" >> /boot/config.txt

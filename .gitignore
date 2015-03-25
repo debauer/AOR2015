@@ -30,6 +30,5 @@ node_modules
 
 ########
 
-
-node/node_modules
-
+scripts/influxdb-backup.sh
+backup
