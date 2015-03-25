@@ -1,5 +1,7 @@
 {
 	"hostname": "localhost",
+	"circle_sleep": 1,
+	"telegram_sleep": 0.1,
 	"store": {
 		"mongo": true,
 		"influx": true,

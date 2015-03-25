@@ -23,8 +23,12 @@ store_redis = config['store']['redis']
 store_rrd = config['store']['rrd']
 playlist_lines = config['music']['playlist_lines']
 hostname = config['hostname']
+circle_sleep = int(config['circle_sleep'])
+telegram_sleep = float(config['telegram_sleep'])
 
-use_serial = False
+use_serial = True
+
+lcd_seite = 0
 
 if(store_mongo):
 	import pymongo
@@ -40,19 +44,9 @@ def run_cmd(cmd):
 	output = p.communicate()[0]
 	return output
 
-#if(use_serial):
-#	ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
-#	time.sleep(3)
-#title = run_cmd('mpc current')[:22]
-#
-#serial_write("mpd 0 "+ title + " \r")
-
-# {{60.2,"OEL1",500.0},
-# {66.5,"OEL2",500.0},
-# {62.0,"RPI",60.0},
-# {120.1,"Motor",500.0},
-# {27.6,"Aussen",500.0},
-# {23.4,"Innen",500.0}};
+if(use_serial):
+	ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+	time.sleep(3)
 
 def mpc_cmd(cmd):
 	return run_cmd('mpc ' + cmd)
@@ -63,6 +57,7 @@ def update_mpd_to_db():
 def serial_write(str):
 	if(use_serial):
 		ser.write(str)
+		print str
 	else:
 		print str
 
@@ -78,14 +73,18 @@ def mpc_get_stats():
 			"db_play_time": l[7][13:]
 		}
 
+def mpc_get_song():
+	return run_cmd('mpc current')
+
 def mpc_get_status():
 	s =  mpc_cmd('')
+	print s[0:6]
 	if(s[0:6] != "volume"):
 		a = s.split('\n')
 		l = a[2]
 	else:
 		l = s
-	return {"volume": s[7:10],"repeat": s[22:25],"random": s[36:39],"single": s[50:53],"consume": s[65:68]}
+	return {"volume": l[7:10],"repeat": l[22:25],"random": l[36:39],"single": l[50:53],"consume": l[65:68]}
 
 def mpc_get_playlist(inc,length = 4):
 	p =  mpc_cmd('playlist')
@@ -104,12 +103,20 @@ def mpc_get_playlist(inc,length = 4):
 			partlist.append(playlist[i])
 	return partlist
 
-print mpc_get_stats()
+while 1:
+	#print mpc_get_status()
+	#print mpc_get_song()
+	#print mpc_get_stats()
+	time.sleep(circle_sleep)
+	if lcd_seite == 0:
+		mpc_status = mpc_get_status()
+		# |   artist 1 - song 123    |
+		# |  #12/24 1:24/4:31 (34%)  |
+		# | V: 51%  RE: off  RA: off |
+		serial_write("mpd 0 "+ mpc_get_song()[:24] + " \r")
+		#serial_write("mpd 1 V: " + " \r")
+		time.sleep(telegram_sleep)
+		serial_write("mpd 1 V: " + mpc_status["volume"] + "%  RE: " + mpc_status["repeat"] +"  RE: " + mpc_status["random"] +"\r")
 
-#while 1:
-#	time.sleep(1)
-#	temp = mpc_cmd('current')[:22]
-#	if(temp != title):
-#		title = temp
-#		serial_write("mpd 0 "+ title + " \r")
-#ser.close()
+if(use_serial):
+	ser.close()
