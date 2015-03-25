@@ -22,5 +22,18 @@
 			"info": false,
 			"error": true
 		}
+	},
+	"music": {
+		"keys": ["volume","repeat","single","random","title","lage","gforce"],
+		"playlist_lines": 4
+	},
+	"autos": {
+		"anzahl": 3,
+		"sensoren":{
+			"auto0": ["oel","wasser","motor","innen","ausen","position","lage","gforce","bier"],
+			"auto1": ["oel","wasser","motor","innen","position","lage","gforce"],
+			"auto2": ["oel","wasser","motor","innen","position","lage","gforce"]
+		}
 	}
+	
 }

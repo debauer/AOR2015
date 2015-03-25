@@ -24,7 +24,7 @@
 	aptitude -y install build-essential python-dev python-rpi.gpio nodejs
 
 # apache 2
-	aptitude install apache2
+	aptitude -y install apache2
 
 # graphite - verworfen
 #	cd /home/aor/AOR2015/py
@@ -32,6 +32,15 @@
 #	cd /opt/graphite/conf/
 #   ... 
   
+# mpd
+
+	aptitude -y install mpd mpc ncmpc
+	#default: music_directory         "/var/lib/mpd/music"
+	cp /home/aor/AOR2015/configs/mpd.conf /etc/mpd.conf
+	#sed -i 's!dir = .*!music_directory "/mnt"!g' /etc/mpd.conf  #funzt ned :/
+
+
+
 # influxdb
 	cd /home/pi
 	wget http://demos.pihomeserver.fr/influxdb_0.8.6_armhf.deb
@@ -48,8 +57,12 @@
 	cd grafana
 	cat /home/aor/AOR2015/configs/grafana.js >> config.js
 
+# misc
+	aptitude -y install rrdtool python-rrdtool
+
+
 # aor_daemon
 	cd /home/aor/AOR2015/py
 	pip install -r requirements.txt
 	echo "deamon fehlt noch. muss per hand gestartet werden."
-	echo ""
+	echo "run as aor: /home/aor/AOR2015/py/./rest_daemon.py"

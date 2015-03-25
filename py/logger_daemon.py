@@ -9,15 +9,11 @@ import requests
 import requests.exceptions
 import time
 import gc
-from flask import Flask, jsonify, request
-import pymongo
+#from flask import Flask, jsonify, request
 from bson import BSON
 from bson import json_util
 from datetime import datetime
-#from influxdb import InfluxDBClient
-from influxdb.influxdb08 import InfluxDBClient
-from influxdb.influxdb08.client import InfluxDBClientError
-from thread import start_new_thread
+#from thread import start_new_thread
 from termcolor import colored
 
 config = json.loads(open('../configs/aor_service.json').read())
@@ -30,20 +26,41 @@ store_redis = config['store']['redis']
 store_rrd = config['store']['rrd']
 hostname = config['hostname']
 
+
+auto_anzahl = config['autos']['anzahl']
+auto_sensoren = {}
+auto_sensoren[0] = config['autos']['sensoren']['auto0']
+auto_sensoren[1] = config['autos']['sensoren']['auto0']
+auto_sensoren[2] = config['autos']['sensoren']['auto0']
+
+exchange_store = "mongo"	# mongo oder redis
+
+if(store_rrd):
+	import rrdtool
+
 if(store_mongo):
+	import pymongo
 	mongo = pymongo.MongoClient()
 	#mongo = MongoClient('mongodb://localhost:27017/')
-	db_mongo = mongo.rallye
-	values = db_mongo.values
+	mongo_db = mongo.rallye
+	mongo_values = mongo_db.values
 
 #if(store_keyvalue == "redis"):
 if(store_influx):
-	db_influx = InfluxDBClient(config['influx']['host'],config['influx']['port'],config['influx']['user'],config['influx']['pw'],config['influx']['db'])
+	#from influxdb import InfluxDBClient
+	from influxdb.influxdb08 import InfluxDBClient
+	from influxdb.influxdb08.client import InfluxDBClientError
+	influx_db = InfluxDBClient(config['influx']['host'],config['influx']['port'],config['influx']['user'],config['influx']['pw'],config['influx']['db'])
 
 #app = Flask(__name__)
 
 #es.indices.create(index='system-index', ignore=400)
 
+values = {}
+values["cpu"] = {}
+values["ram"] = {}
+values["mpd"] = {}
+values["disk"] = {}
 series = []
 
 def print_logger(str):
@@ -62,17 +79,115 @@ def print_influx_ClientError():
 
 def influx_write_series():
 	global series
-	try:
-		db_influx.write_points(series)
+	if(store_influx):
+		try:
+			influx_db.write_points(series)
+			series = []
+		except InfluxDBClientError:
+			print_influx_ClientError()
+		except requests.exceptions.ConnectionError:
+			print_influx_ConnectionError()
+	else:
 		series = []
-	except InfluxDBClientError:
-		print_influx_ClientError()
-	except requests.exceptions.ConnectionError:
-		print_influx_ConnectionError()
+
+def mongo_update(key,value):
+	if(store_mongo):
+		mongo_values.update({'key':key},{"key": key,"value":value},True)
+
+
+def mongo_select(key):
+	if(store_mongo):
+		s = mongo_values.find_one({"key":key})
+		if s:
+			return s["value"]
+		else:
+			return ""
+
+def helper_check_key(dic,key):
+	if not key in dic:
+		dic[key] = {}
+
+def helper_mongo_store_keyvalue(group,key):
+	global values
+	helper_check_key(values,group)
+	helper_check_key(values[group],key)
+	mongo_update(group + "_" + key,	values[group][key])
+
+def helper_mongo_restore_keyvalue(group,key):
+	global values
+	helper_check_key(values,group)
+	helper_check_key(values[group],key)
+	values[group][key]	= mongo_select(group + "_" + key)
+
+def helper_car_mongo_to_value(auto,wert):
+	global values
+	val = mongo_select("auto"+str(auto)+str(wert))
+	helper_check_key(values,"auto")
+	helper_check_key(values["auto"],auto)
+	helper_check_key(values["auto"][auto],wert)
+	if(values["auto"][auto][wert] != val):
+		values["auto"][auto][wert] = val
+		return True
+	else:
+		return False
+
+def store_keyvalues():
+	global series,values
+	if(exchange_store == "mongo"):
+		# disk erstmal nicht
+		helper_mongo_store_keyvalue("cpu","percent")
+		helper_mongo_store_keyvalue("cpu","temperatur")
+		helper_mongo_store_keyvalue("ram","total")
+		helper_mongo_store_keyvalue("ram","used")
+		helper_mongo_store_keyvalue("ram","percent")
+	elif(exchange_store == "redis"):
+		print_logger_error("redis not implemented")
+	else:
+		print_logger_error("no valid key value store")
+
+def restore_keyvalues():
+	global series,values
+	if(exchange_store == "mongo"):
+		helper_mongo_restore_keyvalue("cpu","percent")
+		helper_mongo_restore_keyvalue("cpu","temperatur")
+		helper_mongo_restore_keyvalue("ram","total")
+		helper_mongo_restore_keyvalue("ram","used")
+		helper_mongo_restore_keyvalue("ram","percent")
+		
+		# musik
+		values["mpd"][1]			= mongo_select("mpd1")
+		values["mpd"][2]			= mongo_select("mpd2")
+		values["mpd"][3]			= mongo_select("mpd3")
+	
+		for r in range(auto_anzahl):
+			for v in auto_sensoren:
+				helper_car_mongo_to_value(r,v)
+	elif(exchange_store == "redis"):
+		print_logger_error("redis not implemented")
+	else:
+		print_logger_error("no valid key value store")
+
+def log_auto():
+	global auto_sensoren
+	for n in range(auto_anzahl):
+		col = auto_sensoren[n]
+		col.append("auto")
+		val = []
+		for v in auto_sensoren:
+			val.append(values["auto"][n][v])
+		val.append("auto"+str(n))
+		points = {
+				"name": "auto",
+				"columns": col,
+				"points": [val]
+		}
+		series.append(points)
+
 
 def log_disk():
-	global series
+	global series,values
 	partitions = psutil.disk_partitions()
+	helper_check_key(values,"disk")
 	for p in partitions:
 		disk = psutil.disk_usage(p.mountpoint)
 		points = {
@@ -83,11 +198,15 @@ def log_disk():
 			]
 		}
 		series.append(points)
+		helper_check_key(values["disk"],p.mountpoint)
+		values["disk"][p.mountpoint]["used"] = disk.used
+		values["disk"][p.mountpoint]["free"] = disk.free
+		values["disk"][p.mountpoint]["percent"] = disk.percent
 		print_logger("DISK -> " + p.mountpoint +  " :" + str(disk))
 
 def log_cpu_temp():
 	tstr = ""
-	global series
+	global series,values
 	with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
 		tstr = f.read()
 	tfloat = float(tstr)
@@ -99,6 +218,7 @@ def log_cpu_temp():
 			[tfloat, hostname]
 		]
 	}
+	values["cpu"]["temperatur"] = tfloat
 	print_logger("CPU -> temp:" + str(tfloat))
 	series.append(points)
 
@@ -112,6 +232,7 @@ def log_cpu_percent():
 			[cpu, hostname]
 		]
 	}
+	values["cpu"]["percent"] = cpu
 	series.append(points)
 	print_logger("CPU -> percent:" + str(cpu))
 
@@ -126,22 +247,26 @@ def log_mem():
 			[mem.used, mem.total, mem.percent, hostname]
 			]
 	}
+	values["ram"]["used"] = mem.used
+	values["ram"]["total"] = mem.total
+	values["ram"]["percent"] = mem.percent
 	series.append(points)
 	print_logger("RAM -> used:" + str(mem.used/1024/1024) + "MB")
 
 
 try:
-
 	print colored("==========================================", 'red')
 	print colored("AOR Logger Script running", 'magenta')
 	print colored("Autor: ", 'magenta') + colored("David 'debauer' Bauer", 'white')
 	print colored("==========================================", 'red')
 	while(True):
+		restore_keyvalues()
 		log_cpu_percent()
 		log_cpu_temp()
 		log_mem()
 		log_disk()
 		influx_write_series()
+		store_keyvalues()
 		gc.collect()
 		#time.sleep(1)
 

@@ -55,18 +55,18 @@ def get_values():
 
 
 # curl -i http://127.0.0.1:5002/api/v1.0/value/aussen
-@app.route('/api/v1.0/value/<string:name>', methods=['get'])
-def get_value(name):
-	doc = values.find_one({"name":name})
+@app.route('/api/v1.0/value/<string:key>', methods=['get'])
+def get_value(key):
+	doc = values.find_one({"key":key})
 	return json_util.dumps(doc, sort_keys=True, indent=4, default=json_util.default), 201
 
-# curl -i -H "Content-Type: application/json" -X POST -d '{"name":"aussen", "value":123.2}' http://127.0.0.1:5002/api/v1.0/value
+# curl -i -H "Content-Type: application/json" -X POST -d '{"key":"aussen", "value":123.2}' http://127.0.0.1:5002/api/v1.0/value
 @app.route('/api/v1.0/value', methods=['POST'])
 def post_value():
-	if not request.json or not 'name' in request.json or not 'value' in request.json:
+	if not request.json or not 'key' in request.json or not 'value' in request.json:
 		abort(400)
-	values.update({'name':request.json.get("name")},request.json,True)
-	doc = values.find_one({"name":request.json.get("name")})
+	values.update({'key':request.json.get("key")},request.json,True)
+	doc = values.find_one({"key":request.json.get("key")})
 	return json_util.dumps(doc, sort_keys=True, indent=4, default=json_util.default), 201
 
 if __name__ == '__main__':
