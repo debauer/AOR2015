@@ -1,10 +1,26 @@
 {
 	"hostname": "localhost",
+	"store": {
+		"mongo": true,
+		"influx": true,
+		"redis": false,
+		"rrd": false
+	},
 	"influx": {
 		"host": "localhost",
 		"port": 8086,
 		"db": "aor2015",
 		"user": "admin",
 		"pw": "admin"
+	},
+	"logging": {
+		"logger": {
+			"info": false,
+			"error": true
+		},
+		"rest": {
+			"info": false,
+			"error": true
+		}
 	}
 }
