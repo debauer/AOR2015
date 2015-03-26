@@ -30,6 +30,8 @@ use_serial = True
 
 lcd_seite = 0
 
+mpc = {}
+
 if(store_mongo):
 	import pymongo
 	mongo = pymongo.MongoClient()
@@ -55,11 +57,12 @@ def update_mpd_to_db():
 	run_cmd('mpc current')[:22]
 
 def serial_write(str):
+	time.sleep(telegram_sleep)
 	if(use_serial):
+		print "ON: " +  str
 		ser.write(str)
-		print str
 	else:
-		print str
+		print "OFF: " +  str
 
 def mpc_get_stats():
 	s =  mpc_cmd('stats')
@@ -76,15 +79,33 @@ def mpc_get_stats():
 def mpc_get_song():
 	return run_cmd('mpc current')
 
-def mpc_get_status():
+def mpc_get_status1():
 	s =  mpc_cmd('')
-	print s[0:6]
+	if(s[0:6] != "volume"):
+		a = s.split('\n')
+		d = a[1]
+	else:
+		d = ""
+	status = {}
+	if(d!=""):
+		status["position"] = d[11:16] 
+		status["time"] = d[19:28]
+		if(d[:9] == "[paused]"):
+			status["title"] = d[10:]
+		elif(d[:9] == "[playing]"):
+			status["title"] = d[11:]
+	#print status["title"]
+	return status
+
+def mpc_get_status2():
+	s =  mpc_cmd('')
 	if(s[0:6] != "volume"):
 		a = s.split('\n')
 		l = a[2]
 	else:
 		l = s
-	return {"volume": l[7:10],"repeat": l[22:25],"random": l[36:39],"single": l[50:53],"consume": l[65:68]}
+	status = {"volume": l[7:10],"repeat": l[22:25],"random": l[36:39],"single": l[50:53],"consume": l[65:68],"position": "xx/xx","title": ""}
+ 	return status
 
 def mpc_get_playlist(inc,length = 4):
 	p =  mpc_cmd('playlist')
@@ -98,25 +119,60 @@ def mpc_get_playlist(inc,length = 4):
 	else:
 		for i in range(inc,len(playlist)):
 			partlist.append(playlist[i])
-		print inc+length-len(playlist)
+		#print inc+length-len(playlist)
 		for i in range(inc+length-len(playlist)+1):
 			partlist.append(playlist[i])
 	return partlist
 
+def mongo_select(key):
+	if(store_mongo):
+		s = mongo_values.find_one({"key":key})
+		if s:
+			return s["value"]
+		else:
+			return ""
+
+def serial_send_mpd(id):
+	global mpc
+	song = mpc_get_song()[:24]
+	song_status = mpc_get_status1()
+	status = mpc_get_status2()
+	if(song != mpc["song"] or id == -2):
+		mpc["song"] = song
+		if(id == 0 or id < 0):
+			serial_write("mpd 0 "+ mpc["song"] + " \r")
+	if(song_status != mpc["song_status"] or id == -2):
+		mpc["song_status"] = song_status
+		if(id == 1 or id < 0):
+			serial_write("mpd 1 "+ mpc["song_status"]["title"] + " \r")
+	if(status != mpc["status"] or id == -2):
+		if(id == 2 or id < 0):
+			mpc["status"] = status
+			serial_write("mpd 2 V: " + mpc["status"]["volume"] + "%  RE: " + mpc["status"]["repeat"] +"  RE: " + mpc["status"]["random"] +"\r")
+
+
+def serial_send_values():
+	if(store_mongo):
+		temperatur = mongo_select("cpu_temperatur")
+		temperatur_format = "{:4.1f}".format(temperatur)
+		serial_write("value 2 "+ temperatur_format + " \r")
+
+
+mpc["song_status"] = mpc_get_status1()
+mpc["status"] = mpc_get_status2()
+mpc["song"] = mpc_get_song()[:24]
+serial_send_mpd(-2)
 while 1:
-	#print mpc_get_status()
+	#print mpc_get_status2()
 	#print mpc_get_song()
 	#print mpc_get_stats()
 	time.sleep(circle_sleep)
 	if lcd_seite == 0:
-		mpc_status = mpc_get_status()
 		# |   artist 1 - song 123    |
 		# |  #12/24 1:24/4:31 (34%)  |
 		# | V: 51%  RE: off  RA: off |
-		serial_write("mpd 0 "+ mpc_get_song()[:24] + " \r")
-		#serial_write("mpd 1 V: " + " \r")
-		time.sleep(telegram_sleep)
-		serial_write("mpd 1 V: " + mpc_status["volume"] + "%  RE: " + mpc_status["repeat"] +"  RE: " + mpc_status["random"] +"\r")
+		serial_send_values()
+		serial_send_mpd(-1)
 
 if(use_serial):
 	ser.close()

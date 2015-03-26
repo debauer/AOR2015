@@ -46,8 +46,6 @@ mpd_s mpd[COUNT_MPD] = {{"Artist + Titel",CENTER,0+MPD_MARGIN_TOP,COLOR_WHITE,CO
                         {"Status1",CENTER,25+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK},
                         {"Status2",CENTER,45+MPD_MARGIN_TOP,COLOR_GREY,COLOR_BLACK}};
 
-
-
 struct string_s{
   char s[STRING_LENGHT];
   int x;
@@ -88,6 +86,7 @@ string_s text[COUNT_TEXT] = {{"ALLGAEU ORIENT 2015",CENTER,AOR_MARGIN_TOP,COLOR_
 struct value_s{
   double v;
   char text[STRING_LENGHT];
+  int warn;
   int alarm;
 };
   
@@ -112,12 +111,12 @@ struct value_box_s{
 #define COUNT_BOX 6
 #define VALUE_COLOR_SCHEMA COLOR_BLACK,COLOR_PURPLE,COLOR_RED,COLOR_BLACK,COLOR_SAND
 
-value_s values[COUNT_VALUE] = {{60.2,"OEL1",500.0},
-                                {66.5,"OEL2",500.0},
-                                {62.0,"RPI",60.0},
-                                {120.1,"Motor",500.0},
-                                {27.6,"Aussen",500.0},
-                                {23.4,"Innen",500.0}};
+value_s values[COUNT_VALUE] = { {11.1,"OEL",    500.0,  600.0},
+                                {22.2,"Wasser", 500.0,  600.0},
+                                {33.3,"RPI",    55.0,   60.0},
+                                {44.4,"Motor",  500.0,  600.0},
+                                {55.5,"Aussen", 30.0,  35.0},
+                                {66.6,"Innen",  30.0,   35.0}};
 
 value_box_s value_boxes[COUNT_BOX] = {  {0,0,    VALUES_MARGIN_TOP,     8,13,133,50,VALUE_COLOR_SCHEMA,0},
                                         {1,133,  VALUES_MARGIN_TOP,     8,13,133,50,VALUE_COLOR_SCHEMA,0},
