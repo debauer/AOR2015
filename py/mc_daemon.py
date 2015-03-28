@@ -143,8 +143,8 @@ def serial_send_mpd(id):
 			serial_write("mpd 0 "+ mpc["song"] + " \r")
 	if(song_status != mpc["song_status"] or id == -2):
 		mpc["song_status"] = song_status
-		if(id == 1 or id < 0):
-			serial_write("mpd 1 "+ mpc["song_status"]["title"] + " \r")
+		#if(id == 1 or id < 0):
+		#	serial_write("mpd 1 "+ mpc["song_status"]["title"] + " \r")
 	if(status != mpc["status"] or id == -2):
 		if(id == 2 or id < 0):
 			mpc["status"] = status
