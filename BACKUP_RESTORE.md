@@ -24,3 +24,10 @@ usage
 ./influxdb-backup.sh dump aor2015 -u admin -p admin > ../backup/influx_dump01
 
 ```
+
+** Influx DB **
+
+```
+mongodump -h localhost --port 3001 -d meteor
+mongorestore -h localhost --port 3001 -d meteor dump/meteor
+```
