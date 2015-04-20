@@ -6,6 +6,7 @@ from subprocess import *
 import os,sys,time,serial,json,psutil
 import pymongo
 from pymongo import MongoClient
+pymongo.errors.ConnectionFailure
 from bson import BSON
 from bson import json_util
 import RPi.GPIO as GPIO
@@ -191,11 +192,14 @@ def mpc_get_playlist(inc,length = 4):
 
 def mongo_select(key):
 	if(store_mongo):
-		s = mongo_values.find_one({"key":key})
-		if s:
-			return s["value"]
-		else:
-			return ""
+		try:
+			s = mongo_values.find_one({"key":key})
+			if s:
+				return s["value"]
+			else:
+				return ""
+		except:
+			print 'failed: mongo_values.find_one({"key":key})'
 
 def serial_send_mpd(id):
 	global mpc
@@ -217,9 +221,12 @@ def serial_send_mpd(id):
 
 def serial_send_values():
 	if(store_mongo):
-		temperatur = mongo_select("cpu_temperatur")
-		temperatur_format = "{:4.1f}".format(temperatur)
-		serial_write("value 2 "+ temperatur_format + " \r")
+		try:
+			temperatur = mongo_select("cpu_temperatur")
+			temperatur_format = "{:4.1f}".format(temperatur)
+			serial_write("value 2 "+ temperatur_format + " \r")
+		except:
+			print "mongodb: serial_send_values()"
 
 def mpc_next(channel):
 	mpc_cmd("next")
@@ -248,13 +255,10 @@ try:
 			# | V: 51%  RE: off  RA: off |
 			serial_send_values()
 			serial_send_mpd(-1)
-
 except KeyboardInterrupt:
-	print "KeyboardInterrupt"
-
+	print "KeyboardInterrupt"	
 except:
 	print sys.exc_info()
-	print "other error"
-
+	print "other error"	
 finally:
-    cleanup()
+	cleanup()
