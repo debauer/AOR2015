@@ -16,7 +16,47 @@ from datetime import datetime
 #from thread import start_new_thread
 from termcolor import colored
 
-config = json.loads(open('../configs/aor_service.json').read())
+import logging
+import logging.handlers
+import argparse
+
+# Deafults
+LOG_FILENAME = "/var/log/aor/logger.log"
+LOG_LEVEL = logging.DEBUG  # Could be e.g. "DEBUG" or "WARNING"
+
+parser = argparse.ArgumentParser(description="My simple Python service")
+parser.add_argument("-l", "--log", help="file to write log to (default '" + LOG_FILENAME + "')")
+parser.add_argument("-n", "--nolog", help="no log, use stdio", default=False, action="store_true")
+
+args = parser.parse_args()
+if args.log:
+	LOG_FILENAME = args.log
+
+if not args.nolog:
+	logger = logging.getLogger(__name__)
+	logger.setLevel(LOG_LEVEL)
+	handler = logging.handlers.TimedRotatingFileHandler(LOG_FILENAME, when="midnight", backupCount=3)
+	formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+	handler.setFormatter(formatter)
+	logger.addHandler(handler)
+	
+	class MyLogger(object):
+		def __init__(self, logger, level):
+			"""Needs a logger and a logger level."""
+			self.logger = logger
+			self.level = level
+	 
+		def write(self, message):
+			# Only log if there is a message (not just a new line)
+			if message.rstrip() != "":
+				self.logger.log(self.level, message.rstrip())
+	 
+	# Replace stdout with logging to file at INFO level
+	sys.stdout = MyLogger(logger, logging.INFO)
+	# Replace stderr with logging to file at ERROR level
+	sys.stderr = MyLogger(logger, logging.ERROR)
+
+config = json.loads(open('/home/debauer/AOR2015/configs/aor_service.json').read())
 
 logging_info = config['logging']['logger']['info']
 logging_error = config['logging']['logger']['error']
@@ -167,6 +207,16 @@ def restore_keyvalues():
 	else:
 		print_logger_error("no valid key value store")
 
+def read_1wire(wid):
+	file = open('/sys/bus/w1/devices/' + wid + '/w1_slave')
+	filecontent = file.read()
+	file.close()
+	stringvalue = filecontent.split("\n")[1].split(" ")[9]
+	return float(stringvalue[2:]) / 1000
+
+def log_1wire():
+	print(str("28-011454989cff") + ' | %5.3f C' % read_1wire("28-011454989cff"))
+
 def log_auto():
 	global auto_sensoren
 	for n in range(auto_anzahl):
@@ -265,6 +315,7 @@ try:
 		log_cpu_temp()
 		log_mem()
 		log_disk()
+		log_1wire()
 		influx_write_series()
 		store_keyvalues()
 		gc.collect()
