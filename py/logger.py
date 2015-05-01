@@ -100,6 +100,7 @@ values = {}
 values["cpu"] = {}
 values["ram"] = {}
 values["mpd"] = {}
+values["1wire"] = {}
 values["disk"] = {}
 series = []
 

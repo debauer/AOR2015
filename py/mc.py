@@ -2,68 +2,35 @@
 #
 #music and control daemon
 
-from subprocess import *
-import os,sys,time,serial,json,psutil
-import pymongo
-from pymongo import MongoClient
-pymongo.errors.ConnectionFailure
-from bson import BSON
-from bson import json_util
+import os,sys,time,serial,json,psutil,threading,argparse,aor
 import RPi.GPIO as GPIO
+import aor.mpc as MPC
+from bson import BSON, json_util
+from subprocess import *
+from datetime import datetime
+from termcolor import colored
 
-import logging
-import logging.handlers
-import argparse
 
-# Deafults
-LOG_FILENAME = "/var/log/aor/mc.log"
-LOG_LEVEL = logging.DEBUG  # Could be e.g. "DEBUG" or "WARNING"
-
-parser = argparse.ArgumentParser(description="My simple Python service")
-parser.add_argument("-l", "--log", help="file to write log to (default '" + LOG_FILENAME + "')")
- 
+parser = argparse.ArgumentParser(description="AOR 2015")
+parser.add_argument("-n", "--nolog", help="no log, use stdio", default=False, action="store_true")
 args = parser.parse_args()
-if args.log:
-	LOG_FILENAME = args.log
 
-logger = logging.getLogger(__name__)
-logger.setLevel(LOG_LEVEL)
-handler = logging.handlers.TimedRotatingFileHandler(LOG_FILENAME, when="midnight", backupCount=3)
-formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-class MyLogger(object):
-	def __init__(self, logger, level):
-		"""Needs a logger and a logger level."""
-		self.logger = logger
-		self.level = level
- 
-	def write(self, message):
-		# Only log if there is a message (not just a new line)
-		if message.rstrip() != "":
-			self.logger.log(self.level, message.rstrip())
- 
-# Replace stdout with logging to file at INFO level
-sys.stdout = MyLogger(logger, logging.INFO)
-# Replace stderr with logging to file at ERROR level
-sys.stderr = MyLogger(logger, logging.ERROR)
+if not args.nolog:
+	aor.stdio_logger.use_logging_handler(filename="/var/log/aor/mc.log",level="debug")
 
 config = json.loads(open('/home/debauer/AOR2015/configs/aor_service.json').read())
 
-logging_info = config['logging']['logger']['info']
-logging_error = config['logging']['logger']['error']
-store_mongo = config['store']['mongo']
-store_influx = config['store']['influx']
-store_redis = config['store']['redis']
-store_rrd = config['store']['rrd']
 playlist_lines = config['music']['playlist_lines']
 hostname = config['hostname']
+keyvalues = config['keyvalues']
+w1 = config['w1']
 circle_sleep = int(config['circle_sleep'])
 telegram_sleep = float(config['telegram_sleep'])
 
-use_serial = True
+keyvalue 	= aor.keyvalue.KeyValue(mongo=config['store']['mongo'],redis=config['store']['redis'])
+log 		= aor.logger.Logger(rrd=config['store']['rrd'],influx=config['store']['influx'],influx_config=config['influx'])
 
+use_serial = True
 lcd_seite = 0
 
 GPIO.setmode(GPIO.BOARD)
@@ -85,127 +52,124 @@ GPIO.setup(BUTTON_PREV,		GPIO.IN, pull_up_down = GPIO.PUD_UP)
 GPIO.setup(BUTTON_UP, 		GPIO.IN, pull_up_down = GPIO.PUD_UP) 
 GPIO.setup(BUTTON_DOWN, 	GPIO.IN, pull_up_down = GPIO.PUD_UP) 
 
+GPIO.add_event_detect(BUTTON_NEXT, GPIO.FALLING, callback=MPC.next, bouncetime=300)
+GPIO.add_event_detect(BUTTON_PREV, GPIO.FALLING, callback=MPC.prev, bouncetime=300)
+
 mpc = {}
+series = []
 
-if(store_mongo):
-	import pymongo
-	mongo = pymongo.MongoClient()
-	#mongo = MongoClient('mongodb://localhost:27017/')
-	mongo_db = mongo.rallye
-	mongo_values = mongo_db.values
+#def helper_car_mongo_to_value(auto,wert):
+#	global values
+#	val = keyvalue.select("auto"+str(auto)+str(wert))
+#	helper_check_key(values,"auto")
+#	helper_check_key(values["auto"],auto)
+#	helper_check_key(values["auto"][auto],wert)
+#	if(values["auto"][auto][wert] != val):
+#		values["auto"][auto][wert] = val
+#		return True
+#	else:
+#		return False
+
+def read_1wire(wid):
+	file = open('/sys/bus/w1/devices/' + wid + '/w1_slave')
+	filecontent = file.read()
+	file.close()
+	stringvalue = filecontent.split("\n")[1].split(" ")[9]
+	return float(stringvalue[2:]) / 1000
+
+def log_1wire():
+	for key,adr in w1.items():
+		value = read_1wire(adr)
+		points = {
+				"name": "w1",
+				"columns": [key],
+				"points": [[value]]
+		}
+		print(str(key) + ' | %5.3f C' % value)
+		keyvalue.update("w1_"+key,value)
+		log.append_series(points)
+
+def log_disk():
+	global series
+	partitions = psutil.disk_partitions()
+	for p in partitions:
+		disk = psutil.disk_usage(p.mountpoint)
+		points = {
+			"name": "disk_usage",
+			"columns": ["mount","used", "free", "percent", "host"],
+			"points": [
+				[p.mountpoint, disk.used, disk.free, disk.percent , hostname]
+			]
+		}
+		#keyvalue.update("hdd_",disk.used)
+		#keyvalue.update("cpu_temperatur",disk.free)
+		#keyvalue.update("cpu_temperatur",disk.percent)
+		log.append_series(points)
+
+def log_cpu_temp():
+	tstr = ""
+	global series
+	with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+		tstr = f.read()
+	tfloat = float(tstr)
+	tfloat = tfloat / 1000
+	points = {
+		"name": "cpu_temperatur",
+		"columns": ["value", "host"],
+		"points": [
+			[tfloat, hostname]
+		]
+	}
+	keyvalue.update("cpu_temperatur",tfloat)
+	log.append_series(points)
+
+def log_cpu_percent():
+	global series
+	cpu = psutil.cpu_percent(interval=1)
+	points = {
+		"name": "cpu_percent",
+		"columns": ["value", "host"],
+		"points": [
+			[cpu, hostname]
+		]
+	}
+	keyvalue.update("cpu_percent",cpu)
+	log.append_series(points)
 
 
-
-def run_cmd(cmd):
-	p = Popen(cmd, shell=True, stdout=PIPE)
-	output = p.communicate()[0]
-	return output
+def log_mem():
+	global series
+	mem = psutil.virtual_memory()
+	points = {
+			"name": "mem_usage",
+			"columns": ["used", "total", "percent", "host"],
+			"points": [
+			[mem.used, mem.total, mem.percent, hostname]
+			]
+	}
+	keyvalue.update("mem_used",mem.used)
+	keyvalue.update("mem_total",mem.total)
+	keyvalue.update("mem_percent",mem.percent)
+	series.append(points)
 
 if(use_serial):
 	ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 	time.sleep(3)
 
-def mpc_cmd(cmd):
-	return run_cmd('mpc ' + cmd)
-
-def update_mpd_to_db():
-	run_cmd('mpc current')[:22]
-
 def serial_write(str):
 	time.sleep(telegram_sleep)
 	if(use_serial):
-		print "ON: " +  str
+		#print "ON: " +  str
 		ser.write(str)
-	else:
-		print "OFF: " +  str
+	#else:
+	#	print "OFF: " +  str
 
-def mpc_get_stats():
-	s =  mpc_cmd('stats')
-	l = s.split('\n')
-	return {"artists": int(l[0][8:]),
-			"albums": int(l[1][7:]),
-			"songs": int(l[2][6:]),
-			"play_time": l[4][10:],
-			"uptime": l[5][7:],
-			"db_updated": l[6][11:],
-			"db_play_time": l[7][13:]
-		}
 
-def mpc_get_song():
-	return run_cmd('mpc current')
-
-def mpc_get_status1():
-	s =  mpc_cmd('')
-	if(s[0:6] != "volume"):
-		a = s.split('\n')
-		d = a[1]
-	else:
-		d = ""
-	status = {}
-	if(d!=""):
-		status["position"] = d[11:16] 
-		status["time"] = d[19:28]
-		if(d[:9] == "[paused]"):
-			status["title"] = d[10:]
-		elif(d[:9] == "[playing]"):
-			status["title"] = d[11:]
-		else:
-			status["title"] = " "
-	else:
-		status["title"] = " "
-		status["position"] = "asd" 
-		status["time"] = "00:00:00"
-	#print status["title"]
-	return status
-
-def mpc_get_status2():
-	s =  mpc_cmd('')
-	if(s[0:6] != "volume"):
-		a = s.split('\n')
-		l = a[2]
-	else:
-		l = s
-	status = {"volume": l[7:10],"repeat": l[22:25],"random": l[36:39],"single": l[50:53],"consume": l[65:68],"position": "xx/xx","title": ""}
- 	return status
-
-def cleanup():
-	if(use_serial):
-		ser.close()
-	GPIO.cleanup()
-
-def mpc_get_playlist(inc,length = 4):
-	p =  mpc_cmd('playlist')
-	playlist = p.split('\n')
-	partlist = []
-	if(inc>=len(playlist)):
-		inc = 0
-	if(len(playlist)> inc+length):
-		for i in range(inc,inc+length):
-			partlist.append(playlist[i])
-	else:
-		for i in range(inc,len(playlist)):
-			partlist.append(playlist[i])
-		#print inc+length-len(playlist)
-		for i in range(inc+length-len(playlist)+1):
-			partlist.append(playlist[i])
-	return partlist
-
-def mongo_select(key):
-	if(store_mongo):
-		try:
-			s = mongo_values.find_one({"key":key})
-			if s:
-				return s["value"]
-			else:
-				return ""
-		except:
-			print 'failed: mongo_values.find_one({"key":key})'
-
-def serial_send_mpd(id):
+def send_mpd(id):
 	global mpc
-	song = mpc_get_song()[:24]
-	song_status = mpc_get_status1()
-	status = mpc_get_status2()
+	song = MPC.song()[:24]
+	song_status = MPC.title_status()
+	status = MPC.mpd_status()
 	if(song != mpc["song"] or id == -2):
 		mpc["song"] = song
 		if(id == 0 or id < 0):
@@ -219,32 +183,79 @@ def serial_send_mpd(id):
 			mpc["status"] = status
 			serial_write("mpd 2 V: " + mpc["status"]["volume"] + "%  RE: " + mpc["status"]["repeat"] +"  RE: " + mpc["status"]["random"] +"\r")
 
-def serial_send_values():
-	if(store_mongo):
+# thread!
+def thread_send_values():
+	value = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	def value_string(i, value, old_value):
+		val = keyvalue.select(value)
+		if(val != old_value):
+			serial_write("value "+ str(i) +" "+ "%5.1f" % val + " \r")
+			return val
+		return old_value
+	while True:
+		time.sleep(1)
 		try:
-			temperatur = mongo_select("cpu_temperatur")
-			temperatur_format = "{:4.1f}".format(temperatur)
-			serial_write("value 2 "+ temperatur_format + " \r")
+			value[0] = value_string(0,"w1_oel",			value[0])
+			value[1] = value_string(1,"w1_bier",		value[1])
+			value[2] = value_string(2,"cpu_temperatur",	value[2])
+			value[3] = value_string(3,"w1_motor",		value[3])
+			value[4] = value_string(4,"w1_aussen",		value[4])
+			value[5] = value_string(5,"w1_innen",		value[5])
 		except:
-			print "mongodb: serial_send_values()"
+			print sys.exc_info()
+			return False
 
-def mpc_next(channel):
-	mpc_cmd("next")
-	print("Button next pressed")
+#thread
+def thread_log_system():
+	while True:
+		time.sleep(1)
+		try:
+			log_cpu_temp()
+			log_mem()
+			log_disk()
+			log_cpu_percent()
+		except:
+			print sys.exc_info()
+			return False
 
-def mpc_prev(channel):
-	mpc_cmd("prev")
-	print("Button prev pressed")
+def thread_log_1wire():
+	while True:
+		try:
+			log_1wire()
+		except:
+			print sys.exc_info()
+			return False
 
-GPIO.add_event_detect(BUTTON_NEXT, GPIO.FALLING, callback=mpc_next, bouncetime=300)
-GPIO.add_event_detect(BUTTON_PREV, GPIO.FALLING, callback=mpc_prev, bouncetime=300)
+def cleanup():
+
+	if(use_serial):
+		ser.close()
+	GPIO.cleanup()
+
+thValues = threading.Thread(target=thread_send_values)
+thLogSystem = threading.Thread(target=thread_log_system)
+thLog1Wire = threading.Thread(target=thread_log_1wire)
+thValues.daemon = True
+thLogSystem.daemon = True
+thLog1Wire.daemon = True
 
 try:
-	mpc["song_status"] = mpc_get_status1()
-	mpc["status"] = mpc_get_status2()
-	mpc["song"] = mpc_get_song()[:24]
-	serial_send_mpd(-2)
+	mpc["song_status"] = MPC.title_status()
+	mpc["status"] = MPC.mpd_status()
+	mpc["song"] = MPC.song()[:24]
+	send_mpd(-2)
+
+	thValues.start()
+	thLogSystem.start()
+	thLog1Wire.start()
 	while 1:
+
+		#keyvalue.restore()
+		log.write_series()
+		#store_keyvalues()
+		#gc.collect()
+
+
 		#print mpc_get_status2()
 		#print mpc_get_song()
 		#print mpc_get_stats()
@@ -253,12 +264,15 @@ try:
 			# |   artist 1 - song 123    |
 			# |  #12/24 1:24/4:31 (34%)  |
 			# | V: 51%  RE: off  RA: off |
-			serial_send_values()
-			serial_send_mpd(-1)
+			#send_values()
+			send_mpd(-1)
 except KeyboardInterrupt:
 	print "KeyboardInterrupt"	
 except:
 	print sys.exc_info()
 	print "other error"	
 finally:
+	#thValues.terminate()
+	#thLogSystem.terminate()
+	#thLog1Wire.terminate()
 	cleanup()
