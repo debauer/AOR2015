@@ -25,7 +25,7 @@ class Logger(object):
 
 	def write_series(self):
 		if(self.store_influx):
-			print "write_series"
+			#print "write_series"
 			try:
 				if(self.series != []):
 					self.influx_db.write_points(self.series)

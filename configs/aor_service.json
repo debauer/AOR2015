@@ -1,9 +1,9 @@
 {
 	"hostname": "localhost",
-	"circle_sleep": 1,
+	"circle_sleep": 0.1,
 	"telegram_sleep": 0.05,
 	"store": {
-		"mongo": true,
+		"mongo": false,
 		"influx": true,
 		"redis": false,
 		"rrd": false

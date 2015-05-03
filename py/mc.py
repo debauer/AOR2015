@@ -9,10 +9,14 @@ from bson import BSON, json_util
 from subprocess import *
 from datetime import datetime
 from termcolor import colored
+import gaugette.rotary_encoder
+from collections import deque
 
 
 parser = argparse.ArgumentParser(description="AOR 2015")
 parser.add_argument("-n", "--nolog", help="no log, use stdio", default=False, action="store_true")
+parser.add_argument("-v", "--values", help="show values", default=False, action="store_true")
+parser.add_argument("-i", "--input", help="show input", default=False, action="store_true")
 args = parser.parse_args()
 
 if not args.nolog:
@@ -32,9 +36,12 @@ log 		= aor.logger.Logger(rrd=config['store']['rrd'],influx=config['store']['inf
 
 use_serial = True
 lcd_seite = 0
+lcd_seite_max = 3
 
 GPIO.setmode(GPIO.BOARD)
 #GPIO.setwarnings(False) 
+
+SERIAL_DATA = deque([])
 
 ENCODER_1 		= 33
 ENCODER_2 		= 35
@@ -44,16 +51,14 @@ BUTTON_PREV		= 38
 BUTTON_UP		= 22
 BUTTON_DOWN		= 18
 
-GPIO.setup(ENCODER_1, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
-GPIO.setup(ENCODER_2, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
+#GPIO.setup(ENCODER_1, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
+#GPIO.setup(ENCODER_2, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
 GPIO.setup(BUTTON_ENCODER, 	GPIO.IN, pull_up_down = GPIO.PUD_UP)
 GPIO.setup(BUTTON_NEXT, 	GPIO.IN, pull_up_down = GPIO.PUD_UP) 
 GPIO.setup(BUTTON_PREV,		GPIO.IN, pull_up_down = GPIO.PUD_UP) 
 GPIO.setup(BUTTON_UP, 		GPIO.IN, pull_up_down = GPIO.PUD_UP) 
 GPIO.setup(BUTTON_DOWN, 	GPIO.IN, pull_up_down = GPIO.PUD_UP) 
 
-GPIO.add_event_detect(BUTTON_NEXT, GPIO.FALLING, callback=MPC.next, bouncetime=300)
-GPIO.add_event_detect(BUTTON_PREV, GPIO.FALLING, callback=MPC.prev, bouncetime=300)
 
 mpc = {}
 series = []
@@ -85,7 +90,8 @@ def log_1wire():
 				"columns": [key],
 				"points": [[value]]
 		}
-		print(str(key) + ' | %5.3f C' % value)
+		if args.values:
+			print(str(key) + ' | %5.3f C' % value)
 		keyvalue.update("w1_"+key,value)
 		log.append_series(points)
 
@@ -152,22 +158,19 @@ def log_mem():
 	keyvalue.update("mem_percent",mem.percent)
 	series.append(points)
 
-if(use_serial):
-	ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
-	time.sleep(3)
-
-def serial_write(str):
-	time.sleep(telegram_sleep)
-	if(use_serial):
-		#print "ON: " +  str
-		ser.write(str)
+def serial_write(stri):
+	global SERIAL_DATA
+	#print "ON: " +  str
+	#ser.write(str)
+	SERIAL_DATA.append(stri)
 	#else:
 	#	print "OFF: " +  str
 
 
 def send_mpd(id):
+	global serial
 	global mpc
-	song = MPC.song()[:24]
+	song = MPC.song()
 	song_status = MPC.title_status()
 	status = MPC.mpd_status()
 	if(song != mpc["song"] or id == -2):
@@ -185,15 +188,17 @@ def send_mpd(id):
 
 # thread!
 def thread_send_values():
-	value = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	global serial
+	value = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
 	def value_string(i, value, old_value):
+		time.sleep(0.2)
 		val = keyvalue.select(value)
 		if(val != old_value):
 			serial_write("value "+ str(i) +" "+ "%5.1f" % val + " \r")
 			return val
 		return old_value
 	while True:
-		time.sleep(1)
+		#time.sleep(0.2)
 		try:
 			value[0] = value_string(0,"w1_oel",			value[0])
 			value[1] = value_string(1,"w1_bier",		value[1])
@@ -202,8 +207,8 @@ def thread_send_values():
 			value[4] = value_string(4,"w1_aussen",		value[4])
 			value[5] = value_string(5,"w1_innen",		value[5])
 		except:
-			print sys.exc_info()
-			return False
+			print "thread_send_values: " + str(sys.exc_info())
+			#return False
 
 #thread
 def thread_log_system():
@@ -215,7 +220,7 @@ def thread_log_system():
 			log_disk()
 			log_cpu_percent()
 		except:
-			print sys.exc_info()
+			print "thread_log_system: " + str(sys.exc_info())
 			return False
 
 def thread_log_1wire():
@@ -223,49 +228,135 @@ def thread_log_1wire():
 		try:
 			log_1wire()
 		except:
-			print sys.exc_info()
+			print "thread_log_1wire: " + str(sys.exc_info())
 			return False
 
 def cleanup():
-
 	if(use_serial):
 		ser.close()
 	GPIO.cleanup()
 
-thValues = threading.Thread(target=thread_send_values)
+
+def event_up(channel):
+	if(lcd_seite == lcd_seite_max):
+		lcd_seite = 0
+	else:
+		lcd_seite = lcd_seite + 1
+	if args.input:
+		print "Taste: UP - Seite: " + lcd_seite 
+
+def event_down(channel):
+	if(lcd_seite == 0):
+		lcd_seite = lcd_seite_max
+	else:
+		lcd_seite = lcd_seite - 1
+	if args.input:
+		print "Taste: DOWN - Seite: " + lcd_seite 
+
+def event_next(channel):
+	if args.input:
+		print "Taste: NEXT - mpc next"
+	MPC.next()
+
+
+def event_prev(channel):
+	if args.input:
+		print "Taste: PREV - mpc prev"
+	MPC.prev()
+
+def event_encoder(channel):
+	if args.input:
+		print "Taste: ENCODER - mpc toggle"
+	#if(lcd_seite == )
+	MPC.toggle()
+
+def thread_rotary():
+	encoder = gaugette.rotary_encoder.RotaryEncoder(23, 24)
+	while True:
+		#time.sleep(0.5)
+		#print "rotary thread"
+		delta = encoder.get_delta()
+		if delta!=0:
+			MPC.setvolume(delta)
+			#print "rotate %d" % delta
+
+def thread_log_series():
+	while 1:
+		try:
+			time.sleep(5)
+			log.write_series()
+		except:
+			print "thread_log_series: " + str(sys.exc_info())
+
+def thread_mpc():
+	global serial
+	global mpc
+	old_song = ""
+	old_song_status = ""
+	old_status = {}
+	while 1:
+		try:
+			time.sleep(1)
+			song = MPC.song()
+			song_status = MPC.title_status()
+			status = MPC.mpd_status()
+			if(song != old_song):
+				old_song = song
+				serial_write("mpd 0 "+ old_song[:23] + " \r")
+			if(song_status != old_song_status):
+				old_song_status = song_status
+				serial_write("mpd 1 "+ old_song_status + " \r")
+			if(status != old_status):
+				old_status = status
+				serial_write("mpd 2 " + old_status +"\r")
+		except:
+			print "thread_mpc: " + str(sys.exc_info())
+
+if(use_serial):
+	ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+	time.sleep(1)
+
+GPIO.add_event_detect(BUTTON_NEXT, 		GPIO.FALLING, callback=event_next, 		bouncetime=300)
+GPIO.add_event_detect(BUTTON_PREV, 		GPIO.FALLING, callback=event_prev, 		bouncetime=300)
+GPIO.add_event_detect(BUTTON_UP, 		GPIO.FALLING, callback=event_up, 		bouncetime=300)
+GPIO.add_event_detect(BUTTON_DOWN, 		GPIO.FALLING, callback=event_down, 		bouncetime=300)
+GPIO.add_event_detect(BUTTON_ENCODER, 	GPIO.FALLING, callback=event_encoder, 	bouncetime=300)
+
+thValues 	= threading.Thread(target=thread_send_values)
 thLogSystem = threading.Thread(target=thread_log_system)
-thLog1Wire = threading.Thread(target=thread_log_1wire)
+thLog1Wire 	= threading.Thread(target=thread_log_1wire)
+thEncoder 	= threading.Thread(target=thread_rotary)
+thMPCWorker = threading.Thread(target=MPC.worker)
+thLogSeries = threading.Thread(target=thread_log_series)
+thMPC 		= threading.Thread(target=thread_mpc)
 thValues.daemon = True
 thLogSystem.daemon = True
 thLog1Wire.daemon = True
+thEncoder.daemon = True
+thMPCWorker.daemon = True
+thLogSeries.daemon = True
+thMPC.daemon = True
 
 try:
-	mpc["song_status"] = MPC.title_status()
-	mpc["status"] = MPC.mpd_status()
-	mpc["song"] = MPC.song()[:24]
-	send_mpd(-2)
+	MPC.connect()
 
-	thValues.start()
 	thLogSystem.start()
 	thLog1Wire.start()
-	while 1:
-
-		#keyvalue.restore()
-		log.write_series()
-		#store_keyvalues()
-		#gc.collect()
-
-
-		#print mpc_get_status2()
-		#print mpc_get_song()
-		#print mpc_get_stats()
-		time.sleep(circle_sleep)
-		if lcd_seite == 0:
-			# |   artist 1 - song 123    |
-			# |  #12/24 1:24/4:31 (34%)  |
-			# | V: 51%  RE: off  RA: off |
-			#send_values()
-			send_mpd(-1)
+	thEncoder.start()
+	thMPCWorker.start()
+	thValues.start()
+	thLogSeries.start()
+	thMPC.start()
+	print "start main loop"
+	while True:
+		time.sleep(0.1)
+		try:
+			ds = SERIAL_DATA.popleft()
+			print "serial:" +  ds
+			ser.write(ds)
+		except IndexError:
+			pass
+			#print "dafuq"
 except KeyboardInterrupt:
 	print "KeyboardInterrupt"	
 except:

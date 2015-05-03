@@ -7,11 +7,6 @@ class KeyValue(object):
 	store_redis = False
 	mongo_values = {}
 	values = {}
-	values["cpu"] = {}
-	values["ram"] = {}
-	values["mpd"] = {}
-	values["1wire"] = {}
-	values["disk"] = {}
 
 	def __init__(self, mongo = True, redis = False):
 		self.store_mongo = mongo
@@ -23,12 +18,16 @@ class KeyValue(object):
 			self.mongo_db = self.mongo.rallye
 			self.mongo_values = self.mongo_db.values
 	
-	def update(self, key,value):
+	def update(self, key, value):
+		self.check_key(key)
 		if(self.store_mongo):
 			self.mongo_values.update({'key':key},{"key": key,"value":value},True)
+		else:
+			self.values[key] = value
 	
 	def select(self, key):
 		try:
+			self.check_key(key)
 			if(self.store_mongo):
 				s = self.mongo_values.find_one({"key":key})
 				if s:
@@ -36,7 +35,7 @@ class KeyValue(object):
 				else:
 					return 0.0
 			else:
-				return 0.0
+				return self.values[key]
 		except:
 			print sys.exc_info()
 
@@ -50,9 +49,9 @@ class KeyValue(object):
 #		self.check_key(values[group],key)
 #		values[group][key]	= self.select(group + "_" + key)
 #
-#	def check_key(dic,key):
-#		if not key in dic:
-#			dic[key] = {}
+	def check_key(self,key):
+		if not key in self.values:
+			self.values[key] = 0.0
 #
 #	def store():
 #		global series,values
