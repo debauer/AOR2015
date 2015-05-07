@@ -11,16 +11,36 @@ from datetime import datetime
 from termcolor import colored
 import gaugette.rotary_encoder
 from collections import deque
+#import rrdtool
+from adafruit.ADS1x15 import ADS as ADS1x15
 
 
 parser = argparse.ArgumentParser(description="AOR 2015")
 parser.add_argument("-n", "--nolog", help="no log, use stdio", default=False, action="store_true")
 parser.add_argument("-v", "--values", help="show values", default=False, action="store_true")
 parser.add_argument("-i", "--input", help="show input", default=False, action="store_true")
+parser.add_argument("--only_sensor", help="only ", default=False, action="store_true")
+parser.add_argument("--only_interface", help="only user Interface", default=False, action="store_true")
 args = parser.parse_args()
 
 if not args.nolog:
 	aor.stdio_logger.use_logging_handler(filename="/var/log/aor/mc.log",level="debug")
+
+mode_data = False
+mode_interface = False
+
+if not args.only_interface and not args.only_sensor:
+	mode_data = True
+	mode_interface = True
+	print "starte sensor und interface"
+elif args.only_sensor:
+	mode_data = True
+	mode_interface = False
+	print "starte nur sensor"
+elif args.only_interface:
+	mode_data = False
+	mode_interface = True
+	print "starte nur interface"
 
 config = json.loads(open('/home/debauer/AOR2015/configs/aor_service.json').read())
 
@@ -32,36 +52,58 @@ circle_sleep = int(config['circle_sleep'])
 telegram_sleep = float(config['telegram_sleep'])
 
 keyvalue 	= aor.keyvalue.KeyValue(mongo=config['store']['mongo'],redis=config['store']['redis'])
-log 		= aor.logger.Logger(rrd=config['store']['rrd'],influx=config['store']['influx'],influx_config=config['influx'])
+if mode_data:
+	log = aor.logger.Logger(rrd=config['store']['rrd'],influx=config['store']['influx'],influx_config=config['influx'])
+	ADS1015 = 0x00  # 12-bit ADC
+	ADS1115 = 0x01	# 16-bit ADC
+	gain = 4096  # +/- 4.096V
+	sps = 250
+	adc = ADS1x15()
 
-use_serial = True
-lcd_seite = 0
-lcd_seite_max = 3
+use_serial = False
+if mode_interface:
+	use_serial = True
+	lcd_seite = 0
+	lcd_seite_max = 3
+	
+	GPIO.setmode(GPIO.BOARD)
+	#GPIO.setwarnings(False) 
 
-GPIO.setmode(GPIO.BOARD)
-#GPIO.setwarnings(False) 
-
-SERIAL_DATA = deque([])
-
-ENCODER_1 		= 33
-ENCODER_2 		= 35
-BUTTON_ENCODER  = 37
-BUTTON_NEXT		= 40
-BUTTON_PREV		= 38
-BUTTON_UP		= 22
-BUTTON_DOWN		= 18
-
-#GPIO.setup(ENCODER_1, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
-#GPIO.setup(ENCODER_2, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
-GPIO.setup(BUTTON_ENCODER, 	GPIO.IN, pull_up_down = GPIO.PUD_UP)
-GPIO.setup(BUTTON_NEXT, 	GPIO.IN, pull_up_down = GPIO.PUD_UP) 
-GPIO.setup(BUTTON_PREV,		GPIO.IN, pull_up_down = GPIO.PUD_UP) 
-GPIO.setup(BUTTON_UP, 		GPIO.IN, pull_up_down = GPIO.PUD_UP) 
-GPIO.setup(BUTTON_DOWN, 	GPIO.IN, pull_up_down = GPIO.PUD_UP) 
+	SERIAL_DATA = deque([])
+	
+	ENCODER_1 		= 33
+	ENCODER_2 		= 35
+	BUTTON_ENCODER  = 37
+	BUTTON_NEXT		= 40
+	BUTTON_PREV		= 38
+	BUTTON_UP		= 22
+	BUTTON_DOWN		= 18
+	
+	#GPIO.setup(ENCODER_1, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
+	#GPIO.setup(ENCODER_2, 		GPIO.IN, pull_up_down = GPIO.PUD_UP)
+	GPIO.setup(BUTTON_ENCODER, 	GPIO.IN, pull_up_down = GPIO.PUD_UP)
+	GPIO.setup(BUTTON_NEXT, 	GPIO.IN, pull_up_down = GPIO.PUD_UP) 
+	GPIO.setup(BUTTON_PREV,		GPIO.IN, pull_up_down = GPIO.PUD_UP) 
+	GPIO.setup(BUTTON_UP, 		GPIO.IN, pull_up_down = GPIO.PUD_UP) 
+	GPIO.setup(BUTTON_DOWN, 	GPIO.IN, pull_up_down = GPIO.PUD_UP) 
 
 
 mpc = {}
 series = []
+data_log_hdd = ""
+data_log_1w = ""
+data_log_cpu = ""
+data_log_ram = ""
+
+def get_time():
+	t = datetime.now()
+	return t.strftime("%Y.%M.%d-%H:%M:%S")
+
+start_time = get_time()
+
+if(use_serial):
+	ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+	time.sleep(1)
 
 #def helper_car_mongo_to_value(auto,wert):
 #	global values
@@ -75,6 +117,34 @@ series = []
 #	else:
 #		return False
 
+def get_time():
+	t = datetime.now()
+	return t.strftime("%Y.%M.%d-%H:%M:%S")
+
+def check_file(path,file):
+	if not (os.path.isfile(path + file)):
+		return 0
+	else:
+		return 1
+
+def write_dataset(file,data):
+	with open("/home/debauer/data/" + file + "_" + start_time +  ".csv", "a") as f:
+		f.write(data + "\n")
+
+def log_analog():
+	volts = adc.readADCSingleEnded(0, gain, sps) / 1000
+	t = get_time()
+	temp = 0.0
+	points = {
+		"name": "motor_ntc",
+		"columns": ["volts", "tempertaur", "host"],
+		"points": [
+			[volts, temp, hostname]
+		]
+	}
+	log.append_series(points)
+	write_dataset("ntc",t+","+str(volts)+","+str(temp))
+
 def read_1wire(wid):
 	file = open('/sys/bus/w1/devices/' + wid + '/w1_slave')
 	filecontent = file.read()
@@ -83,6 +153,9 @@ def read_1wire(wid):
 	return float(stringvalue[2:]) / 1000
 
 def log_1wire():
+	global data_log_1w
+	data = []
+	t = get_time()
 	for key,adr in w1.items():
 		value = read_1wire(adr)
 		points = {
@@ -93,10 +166,14 @@ def log_1wire():
 		if args.values:
 			print(str(key) + ' | %5.3f C' % value)
 		keyvalue.update("w1_"+key,value)
+		data.append(str(value))
 		log.append_series(points)
+	data_str = ','.join(data)
+	write_dataset("1wire",t+","+data_str)
+
 
 def log_disk():
-	global series
+	global series, data_log_hdd
 	partitions = psutil.disk_partitions()
 	for p in partitions:
 		disk = psutil.disk_usage(p.mountpoint)
@@ -112,9 +189,11 @@ def log_disk():
 		#keyvalue.update("cpu_temperatur",disk.percent)
 		log.append_series(points)
 
-def log_cpu_temp():
+def log_cpu():
 	tstr = ""
-	global series
+	global series, data_log_cpu
+	t = get_time()
+	data = []
 	with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
 		tstr = f.read()
 	tfloat = float(tstr)
@@ -126,11 +205,6 @@ def log_cpu_temp():
 			[tfloat, hostname]
 		]
 	}
-	keyvalue.update("cpu_temperatur",tfloat)
-	log.append_series(points)
-
-def log_cpu_percent():
-	global series
 	cpu = psutil.cpu_percent(interval=1)
 	points = {
 		"name": "cpu_percent",
@@ -141,11 +215,15 @@ def log_cpu_percent():
 	}
 	keyvalue.update("cpu_percent",cpu)
 	log.append_series(points)
+	keyvalue.update("cpu_temperatur",tfloat)
+	log.append_series(points)
+	write_dataset("cpu",t+","+str(tfloat)+","+str(cpu))
 
 
 def log_mem():
-	global series
+	global series, data_log_ram
 	mem = psutil.virtual_memory()
+	t = get_time()
 	points = {
 			"name": "mem_usage",
 			"columns": ["used", "total", "percent", "host"],
@@ -157,6 +235,7 @@ def log_mem():
 	keyvalue.update("mem_total",mem.total)
 	keyvalue.update("mem_percent",mem.percent)
 	series.append(points)
+	write_dataset("mem",t+","+str(mem.used)+","+str(mem.total)+","+str(mem.percent))
 
 def serial_write(stri):
 	global SERIAL_DATA
@@ -215,10 +294,10 @@ def thread_log_system():
 	while True:
 		time.sleep(1)
 		try:
-			log_cpu_temp()
+			log_cpu()
 			log_mem()
 			log_disk()
-			log_cpu_percent()
+			log_analog()
 		except:
 			print "thread_log_system: " + str(sys.exc_info())
 			return False
@@ -288,6 +367,12 @@ def thread_log_series():
 		except:
 			print "thread_log_series: " + str(sys.exc_info())
 
+def thread_adc():
+	global ser, use_serial
+	if(use_serial):
+		while True:
+			sys.stdout.write(ser.read(1))
+
 def thread_mpc():
 	global serial
 	global mpc
@@ -312,51 +397,63 @@ def thread_mpc():
 		except:
 			print "thread_mpc: " + str(sys.exc_info())
 
-if(use_serial):
-	ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
-	time.sleep(1)
 
-GPIO.add_event_detect(BUTTON_NEXT, 		GPIO.FALLING, callback=event_next, 		bouncetime=300)
-GPIO.add_event_detect(BUTTON_PREV, 		GPIO.FALLING, callback=event_prev, 		bouncetime=300)
-GPIO.add_event_detect(BUTTON_UP, 		GPIO.FALLING, callback=event_up, 		bouncetime=300)
-GPIO.add_event_detect(BUTTON_DOWN, 		GPIO.FALLING, callback=event_down, 		bouncetime=300)
-GPIO.add_event_detect(BUTTON_ENCODER, 	GPIO.FALLING, callback=event_encoder, 	bouncetime=300)
+if mode_interface:
+	GPIO.add_event_detect(BUTTON_NEXT, 		GPIO.FALLING, callback=event_next, 		bouncetime=300)
+	GPIO.add_event_detect(BUTTON_PREV, 		GPIO.FALLING, callback=event_prev, 		bouncetime=300)
+	GPIO.add_event_detect(BUTTON_UP, 		GPIO.FALLING, callback=event_up, 		bouncetime=300)
+	GPIO.add_event_detect(BUTTON_DOWN, 		GPIO.FALLING, callback=event_down, 		bouncetime=300)
+	GPIO.add_event_detect(BUTTON_ENCODER, 	GPIO.FALLING, callback=event_encoder, 	bouncetime=300)
 
-thValues 	= threading.Thread(target=thread_send_values)
-thLogSystem = threading.Thread(target=thread_log_system)
-thLog1Wire 	= threading.Thread(target=thread_log_1wire)
-thEncoder 	= threading.Thread(target=thread_rotary)
-thMPCWorker = threading.Thread(target=MPC.worker)
-thLogSeries = threading.Thread(target=thread_log_series)
-thMPC 		= threading.Thread(target=thread_mpc)
-thValues.daemon = True
-thLogSystem.daemon = True
-thLog1Wire.daemon = True
-thEncoder.daemon = True
-thMPCWorker.daemon = True
-thLogSeries.daemon = True
-thMPC.daemon = True
+if mode_data:
+	thLogAdc 	= threading.Thread(target=thread_adc)
+	thLogSystem = threading.Thread(target=thread_log_system)
+	thLog1Wire 	= threading.Thread(target=thread_log_1wire)
+	thLogSeries = threading.Thread(target=thread_log_series)
+	thLogAdc.daemon = True
+	thLogSystem.daemon = True
+	thLog1Wire.daemon = True
+	thLogSeries.daemon = True
+	
+
+if mode_interface:
+	thValues 	= threading.Thread(target=thread_send_values)
+	thEncoder 	= threading.Thread(target=thread_rotary)
+	thMPCWorker = threading.Thread(target=MPC.worker)
+	thMPC 		= threading.Thread(target=thread_mpc)
+	thEncoder.daemon = True
+	thMPCWorker.daemon = True
+	thMPC.daemon = True
+	thValues.daemon = True
 
 try:
-	MPC.connect()
+	if mode_interface:
+		MPC.connect()
+		thMPC.start()
+		thEncoder.start()
+		thMPCWorker.start()	
+		thValues.start()
 
-	thLogSystem.start()
-	thLog1Wire.start()
-	thEncoder.start()
-	thMPCWorker.start()
-	thValues.start()
-	thLogSeries.start()
-	thMPC.start()
+	if mode_data:
+		thLogSystem.start()
+		thLog1Wire.start()
+		thLogSeries.start()
+		thLogAdc.start()
+
 	print "start main loop"
-	while True:
-		time.sleep(0.1)
-		try:
-			ds = SERIAL_DATA.popleft()
-			print "serial:" +  ds
-			ser.write(ds)
-		except IndexError:
+	if mode_interface:
+		while True:
+			time.sleep(0.1)
+			try:
+				ds = SERIAL_DATA.popleft()
+				print "serial:" +  ds
+				ser.write(ds)
+			except IndexError:
+				pass
+				#print "dafuq"
+	else:
+		while True:
 			pass
-			#print "dafuq"
 except KeyboardInterrupt:
 	print "KeyboardInterrupt"	
 except:

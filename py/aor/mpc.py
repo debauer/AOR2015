@@ -33,7 +33,7 @@ def connect():
 	#client = MPDClient()               # create client object
 	client.timeout = 10                # network timeout in seconds (floats allowed), default: None
 	#client.idletimeout = None          # timeout for fetching the result of the idle command is handled seperately, default: None
-	client.connect("localhost", 6600)  # connect to localhost:6600
+	client.connect("192.168.1.6", 6600)  # connect to localhost:6600
 	print(client.mpd_version)          # print the MPD version
 	#print(client.find("any", "house")) # print result of the command "find any house"
 
@@ -61,15 +61,29 @@ def worker():
 		with client: # acquire lock
 			status = client.status()
 			song = client.currentsong()
-		var_title 		= song["title"]
-		var_album 		= song["album"]
-		var_artist 		= song["artist"]
-		var_trackNr 	= song["track"]
-		var_trackTime 	= status["time"]
-		var_state 		= status["state"]
-		#var_volume		= status["volume"]
-		var_repeat		= status["repeat"]
-		var_random		= status["random"]
+		try:
+			var_title 		= song["title"]
+			var_album 		= song["album"]
+			var_artist 		= song["artist"]
+			var_trackNr 	= song["track"]
+		except:
+			var_title 		= " "
+			var_album 		= " "
+			var_artist 		= "md3 error"
+			var_trackNr 	= "x"			
+
+		try:
+			var_trackTime 	= status["time"]
+			var_state 		= status["state"]
+			#var_volume		= status["volume"]
+			var_repeat		= status["repeat"]
+			var_random		= status["random"]
+		except:
+			var_trackTime 	= "xxx"
+			var_state 		= "xx"
+			#var_volume		= status["volume"]
+			var_repeat		= "x"
+			var_random		= "x"
 
 def cmd(cmd):
 	p = Popen('mpc ' + cmd, shell=True, stdout=PIPE)

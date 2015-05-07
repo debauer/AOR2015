@@ -5,7 +5,7 @@
 	"store": {
 		"mongo": false,
 		"influx": true,
-		"redis": false,
+		"redis": true,
 		"rrd": false
 	},
 	"influx": {

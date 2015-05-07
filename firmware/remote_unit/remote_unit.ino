@@ -1,8 +1,11 @@
-#include <memorysaver.h>
 
 #include <UTFT.h>
-#include <UTFT_Geometry.h>
+// #include <UTFT_Geometry.h>
 #include <SerialCommand.h>
+#include<Wire.h>
+const int MPU=0x68;  // I2C address of the MPU-6050
+int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+
 extern uint8_t SevenSegNumFont[];
 extern uint8_t SmallFont[];
 extern uint8_t DotMatrix_M_Slash[];
@@ -25,9 +28,9 @@ SerialCommand SCmd;
 
 UTFT myGLCD(ITDB32WD,38,39,40,41);
 
-UTFT_Geometry geo(&myGLCD);
+// UTFT_Geometry geo(&myGLCD);
 
-extern unsigned int compass_bmp[0x3E04];
+// extern unsigned int compass_bmp[0x3E04];
 
 #define STRING_LENGHT 50
 
@@ -336,13 +339,19 @@ void setup(){
   SCmd.addDefaultHandler(unrecognized);        // Handler for command that isn't matched  (says "What?") 
   
   drawSeite();
+  
+  Wire.begin();
+  Wire.beginTransmission(MPU);
+      Wire.write(0x6B);  // PWR_MGMT_1 register
+      Wire.write(0);     // set to zero (wakes up the MPU-6050)
+      Wire.endTransmission(true);
 }
 
 void loop(){
-  static int g = 0;
+  static int g = 0, a = 0;
   inputHandler();
   updateValues();
-  //updateTexte();
+  updateTexte();
   
   
   if(seite == 3){
@@ -352,5 +361,57 @@ void loop(){
     if(g>=360)
       g = 0;
   }
+  
+  switch(a){
+    case 0: 
+      Wire.beginTransmission(MPU);
+      Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
+      Wire.endTransmission(false);
+      Wire.requestFrom(MPU,14,true);  // request a total of 14 registers
+      a++;
+      break;
+    case 1:
+      AcX=Wire.read()<<8|Wire.read();  // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)          
+       a++;break;
+    case 2:
+      AcY=Wire.read()<<8|Wire.read();  // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+        a++;break;
+    case 3:
+      AcZ=Wire.read()<<8|Wire.read();  // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+         a++;break;
+    case 4:
+      Tmp=Wire.read()<<8|Wire.read();  // 0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+      a++;break;
+    case 5:
+      GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+      a++;break;
+    case 6:
+      GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+      a++;break;
+    case 7:
+      GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+      a++;break;
+    case 8:
+      Serial.print("AcX = "); Serial.print(AcX);
+     a++;break;
+    case 9:
+      Serial.print(" | AcY = "); Serial.print(AcY);
+      a++;break;
+    case 10:
+      Serial.print(" | AcZ = "); Serial.print(AcZ);
+      a++;break;
+    case 11:
+      Serial.print(" | Tmp = "); Serial.print(Tmp/340.00+36.53);  //equation for temperature in degrees C from datasheet
+      a++;break;
+    case 12:
+      Serial.print(" | GyX = "); Serial.print(GyX);
+      a++;break;
+    case 13:
+      Serial.print(" | GyY = "); Serial.print(GyY);
+      a++;break;
+    case 14:
+      Serial.print(" | GyZ = "); Serial.println(GyZ);
+      a=0;break;
+      }
 }
 

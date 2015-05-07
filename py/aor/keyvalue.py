@@ -7,6 +7,7 @@ class KeyValue(object):
 	store_redis = False
 	mongo_values = {}
 	values = {}
+	redis_values = {}
 
 	def __init__(self, mongo = True, redis = False):
 		self.store_mongo = mongo
@@ -17,11 +18,17 @@ class KeyValue(object):
 			#mongo = MongoClient('mongodb://localhost:27017/')
 			self.mongo_db = self.mongo.rallye
 			self.mongo_values = self.mongo_db.values
+		if(redis):
+			import redis
+			self.redis_values = redis.StrictRedis(host='localhost', port=6379, db=0)
 	
 	def update(self, key, value):
 		self.check_key(key)
 		if(self.store_mongo):
 			self.mongo_values.update({'key':key},{"key": key,"value":value},True)
+		elif(self.store_redis):
+			self.redis_values.set(key, value)
+			#print "redis: " + key + " " + str(value)
 		else:
 			self.values[key] = value
 	
@@ -33,6 +40,14 @@ class KeyValue(object):
 				if s:
 					return s["value"]
 				else:
+					return 0.0
+			elif(self.store_redis):
+				s = self.redis_values.get(key)
+				if s:
+					#print "redis: " + key + " " + str(s)
+					return float(s)
+				else:
+					#print "redis: no value for" + key
 					return 0.0
 			else:
 				return self.values[key]
