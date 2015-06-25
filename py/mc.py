@@ -15,6 +15,8 @@ import logging
 import logging.handlers
 import argparse
 
+import aor.mpc as mpc
+
 # Deafults
 LOG_FILENAME = "/var/log/aor/mc.log"
 LOG_LEVEL = logging.DEBUG  # Could be e.g. "DEBUG" or "WARNING"
