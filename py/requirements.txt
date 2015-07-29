@@ -1,9 +1,0 @@
-Flask
-pymongo
-elasticsearch
-psutil
-termcolor
-carbon
-whisper
-graphite-web
-influxdb
